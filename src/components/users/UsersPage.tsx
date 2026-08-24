@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { AppUser, UserRole, UserStatus } from '../../types';
+import { ImageUpload } from '../common/ImageUpload';
 
 // Preset avatar options for convenience
 const PRESET_AVATARS = [
@@ -829,36 +830,18 @@ export const UsersPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Avatar Picker */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Pilih Foto Profil Petugas
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {PRESET_AVATARS.map((av, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNewFormData({ ...newFormData, avatar: av.url })}
-                      className={`relative p-1 rounded-2xl border transition-all text-center ${
-                        newFormData.avatar === av.url
-                          ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/50'
-                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                      }`}
-                    >
-                      <img
-                        src={av.url}
-                        alt={av.label}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 rounded-xl object-cover mx-auto"
-                      />
-                      <span className="block text-[9px] text-slate-600 dark:text-slate-400 mt-1 truncate">
-                        {av.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Avatar / Photo Upload */}
+              <ImageUpload
+                id="upload-user-add"
+                value={newFormData.avatar}
+                onChange={(newAvatar) => setNewFormData({ ...newFormData, avatar: newAvatar })}
+                label="Foto Profil Petugas"
+                helperText="Bisa upload foto dari perangkat (maks. 10 MB), input URL, atau pilih avatar preset."
+                maxSizeMB={10}
+                presetOptions={PRESET_AVATARS}
+                allowUrlInput={true}
+                shape="rounded"
+              />
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
@@ -992,36 +975,18 @@ export const UsersPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Preset Avatar */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Ganti Foto Profil
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {PRESET_AVATARS.map((av, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setEditFormData({ ...editFormData, avatar: av.url })}
-                      className={`relative p-1 rounded-2xl border transition-all text-center ${
-                        editFormData.avatar === av.url
-                          ? 'border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/50'
-                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                      }`}
-                    >
-                      <img
-                        src={av.url}
-                        alt={av.label}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 rounded-xl object-cover mx-auto"
-                      />
-                      <span className="block text-[9px] text-slate-600 dark:text-slate-400 mt-1 truncate">
-                        {av.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Preset / Upload Avatar */}
+              <ImageUpload
+                id="upload-user-edit"
+                value={editFormData.avatar}
+                onChange={(newAvatar) => setEditFormData({ ...editFormData, avatar: newAvatar })}
+                label="Ganti Foto Profil Petugas"
+                helperText="Upload foto baru dari perangkat (maks. 10 MB), input URL, atau pilih avatar preset."
+                maxSizeMB={10}
+                presetOptions={PRESET_AVATARS}
+                allowUrlInput={true}
+                shape="rounded"
+              />
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button

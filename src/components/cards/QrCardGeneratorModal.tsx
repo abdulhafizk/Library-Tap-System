@@ -21,6 +21,7 @@ import {
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, Gender, StudentStatus } from '../../types';
 import { generateQrDataUrl, generateRandomCardUid } from '../../utils/qrUtils';
+import { ImageUpload } from '../common/ImageUpload';
 
 interface QrCardGeneratorModalProps {
   isOpen: boolean;
@@ -384,27 +385,16 @@ export const QrCardGeneratorModal: React.FC<QrCardGeneratorModalProps> = ({
                       </div>
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block font-semibold text-slate-700 dark:text-slate-300">
-                          URL Foto Profil
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleRandomizeAvatar}
-                          className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <RefreshCw className="w-3 h-3" /> Ganti Foto Acak
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={studentData.photo_url}
-                        onChange={(e) => setStudentData({ ...studentData, photo_url: e.target.value })}
-                        placeholder="https://..."
-                        className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 text-[11px]"
-                      />
-                    </div>
+                    <ImageUpload
+                      id="upload-student-card-generator"
+                      value={studentData.photo_url}
+                      onChange={(newPhoto) => setStudentData({ ...studentData, photo_url: newPhoto })}
+                      label="Foto Profil Santri"
+                      helperText="Upload foto santri dari perangkat (maks. 10 MB per foto)."
+                      maxSizeMB={10}
+                      allowUrlInput={true}
+                      shape="rounded"
+                    />
                   </div>
                 )}
 

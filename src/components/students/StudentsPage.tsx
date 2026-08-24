@@ -23,6 +23,7 @@ import { Student, Gender, StudentStatus } from '../../types';
 import { exportStudentsToExcel } from '../../utils/exportExcel';
 import { QrCardGeneratorModal } from '../cards/QrCardGeneratorModal';
 import { QrCardViewModal } from '../cards/QrCardViewModal';
+import { ImageUpload } from '../common/ImageUpload';
 
 interface StudentsPageProps {
   onOpenDetail?: (student: Student) => void;
@@ -488,16 +489,17 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                 <p className="text-[11px] text-slate-400 mt-1">Bisa dihubungkan sekarang atau nanti.</p>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">URL Foto Santri</label>
-                <input
-                  type="text"
-                  value={formData.photo_url}
-                  onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+              {/* Upload Foto Santri */}
+              <ImageUpload
+                id="upload-student-add"
+                value={formData.photo_url}
+                onChange={(newPhoto) => setFormData({ ...formData, photo_url: newPhoto })}
+                label="Foto Santri"
+                helperText="Upload foto santri dari perangkat (JPG, PNG, WEBP, GIF). Maks. 10 MB per foto."
+                maxSizeMB={10}
+                allowUrlInput={true}
+                shape="rounded"
+              />
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
@@ -602,6 +604,18 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                   <option value="leave">Cuti</option>
                 </select>
               </div>
+
+              {/* Upload Foto Santri di Edit Modal */}
+              <ImageUpload
+                id="upload-student-edit"
+                value={formData.photo_url}
+                onChange={(newPhoto) => setFormData({ ...formData, photo_url: newPhoto })}
+                label="Foto Santri"
+                helperText="Upload foto santri dari perangkat (JPG, PNG, WEBP, GIF). Maks. 10 MB per foto."
+                maxSizeMB={10}
+                allowUrlInput={true}
+                shape="rounded"
+              />
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
