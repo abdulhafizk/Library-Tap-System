@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
   Radio, 
@@ -93,13 +94,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
-          onClick={onCloseMobile}
-        />
-      )}
+      {/* Mobile backdrop with AnimatePresence */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
+            onClick={onCloseMobile}
+          />
+        )}
+      </AnimatePresence>
 
       <aside className={`
         fixed top-0 bottom-0 left-0 z-50 w-64 lg:w-72 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-200 dark:border-slate-800 shadow-xs
@@ -140,31 +147,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onCloseMobile();
                 }}
                 className={`
-                  w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                  relative w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer group
                   ${isActive 
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-semibold' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                    ? 'text-blue-700 dark:text-blue-400 font-semibold' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
                   }
                 `}
               >
-                <div className="flex items-center gap-3">
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-active-indicator"
+                    className="absolute inset-0 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100/80 dark:border-blue-800/50"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+
+                <div className="relative z-10 flex items-center gap-3">
                   <Icon className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600'
+                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                   }`} />
                   <span>{item.label}</span>
                 </div>
 
-                {item.badge !== undefined && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-blue-600 text-white'}`}>
-                    {item.badge}
-                  </span>
-                )}
-                {item.highlight && item.badge === undefined && !isActive && (
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-                  </span>
-                )}
+                <div className="relative z-10 flex items-center gap-1.5">
+                  {item.badge !== undefined && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-blue-600 text-white'}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                  {item.highlight && item.badge === undefined && !isActive && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -186,25 +203,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onCloseMobile();
                 }}
                 className={`
-                  w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                  relative w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer group
                   ${isActive 
-                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-semibold' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                    ? 'text-blue-700 dark:text-blue-400 font-semibold' 
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
                   }
                 `}
               >
-                <div className="flex items-center gap-3">
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-active-indicator"
+                    className="absolute inset-0 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100/80 dark:border-blue-800/50"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
+
+                <div className="relative z-10 flex items-center gap-3">
                   <Icon className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600'
+                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                   }`} />
                   <span>{item.label}</span>
                 </div>
 
-                {item.badge !== undefined && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-emerald-500 text-white'}`}>
-                    {item.badge}
-                  </span>
-                )}
+                <div className="relative z-10">
+                  {item.badge !== undefined && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-emerald-500 text-white'}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}

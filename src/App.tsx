@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { Sidebar, NavTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -54,20 +55,31 @@ function AppContent() {
           onOpenProfile={() => setIsProfileModalOpen(true)}
         />
 
-        {/* Page Content */}
+        {/* Page Content with Motion Page Transition */}
         <main className={`flex-1 ${currentTab === 'kiosk' ? 'p-3 sm:p-6' : 'pb-12'}`}>
-          {currentTab === 'dashboard' && <DashboardPage onNavigate={setCurrentTab} />}
-          {currentTab === 'tap' && <TapPage onGoToStudents={() => setCurrentTab('students')} />}
-          {currentTab === 'circulation' && <CirculationPage />}
-          {currentTab === 'awards' && <AwardsPage />}
-          {currentTab === 'kiosk' && <KioskDisplayPage onExitKiosk={() => setCurrentTab('dashboard')} />}
-          {currentTab === 'students' && <StudentsPage />}
-          {currentTab === 'cards' && <CardsPage />}
-          {currentTab === 'visits' && <VisitsPage />}
-          {currentTab === 'live' && <LiveRoomPage />}
-          {currentTab === 'stats' && <StatsPage />}
-          {currentTab === 'users' && <UsersPage />}
-          {currentTab === 'settings' && <SettingsPage />}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full"
+            >
+              {currentTab === 'dashboard' && <DashboardPage onNavigate={setCurrentTab} />}
+              {currentTab === 'tap' && <TapPage onGoToStudents={() => setCurrentTab('students')} />}
+              {currentTab === 'circulation' && <CirculationPage />}
+              {currentTab === 'awards' && <AwardsPage />}
+              {currentTab === 'kiosk' && <KioskDisplayPage onExitKiosk={() => setCurrentTab('dashboard')} />}
+              {currentTab === 'students' && <StudentsPage />}
+              {currentTab === 'cards' && <CardsPage />}
+              {currentTab === 'visits' && <VisitsPage />}
+              {currentTab === 'live' && <LiveRoomPage />}
+              {currentTab === 'stats' && <StatsPage />}
+              {currentTab === 'users' && <UsersPage />}
+              {currentTab === 'settings' && <SettingsPage />}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

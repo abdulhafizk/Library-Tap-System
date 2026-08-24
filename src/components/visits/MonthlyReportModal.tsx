@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, 
   Download, 
@@ -189,38 +190,48 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
   };
 
   return (
-    <div 
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
-    >
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden cursor-default animate-in fade-in zoom-in-95 my-auto"
-      >
-        {/* Modal Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-700 text-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
-              <FileText className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
-                Laporan Kunjungan Bulanan (PDF)
-              </h2>
-              <p className="text-xs text-emerald-100 font-medium">
-                Format resmi administrasi perpustakaan & madrasah / pesantren
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Tutup"
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden cursor-default my-auto"
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-700 text-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white shadow-inner">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
+                    Laporan Kunjungan Bulanan (PDF)
+                  </h2>
+                  <p className="text-xs text-emerald-100 font-medium">
+                    Format resmi administrasi perpustakaan & madrasah / pesantren
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
@@ -619,7 +630,9 @@ export const MonthlyReportModal: React.FC<MonthlyReportModalProps> = ({
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+);
 };

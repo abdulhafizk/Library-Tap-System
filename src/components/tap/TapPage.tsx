@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Radio, 
   CheckCircle2, 
@@ -23,9 +23,16 @@ import {
   Music,
   BellRing,
   MessageSquare,
-  User
+  User,
+  QrCode,
+  Flashlight,
+  FlashlightOff,
+  SwitchCamera,
+  ScanLine,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import jsQR from 'jsqr';
 import { useLibrary } from '../../context/LibraryContext';
 import { TapResult } from '../../types';
 import { soundManager } from '../../utils/audio';
@@ -61,10 +68,21 @@ export const TapPage: React.FC<TapPageProps> = () => {
 
   // Camera Scanner State
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [hasTorch, setHasTorch] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [lastScannedResult, setLastScannedResult] = useState<string | null>(null);
+  const [isScanningFrame, setIsScanningFrame] = useState(false);
+
   const cameraStreamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<number | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const lastScanTimestampRef = useRef<number>(0);
+  const lastScannedCodeRef = useRef<string>('');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,60 +187,226 @@ export const TapPage: React.FC<TapPageProps> = () => {
     };
   }, []);
 
-  // Camera Barcode/QR Scanner start & stop
-  const startCamera = async () => {
+  // Enumerate video devices
+  const refreshVideoDevices = useCallback(async () => {
     try {
-      setCameraError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      cameraStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        setAvailableCameras(videoInputs);
       }
-      setIsCameraActive(true);
-
-      // Check for BarcodeDetector API
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8']
-        });
-
-        scanIntervalRef.current = window.setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState >= 2) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0) {
-                const rawVal = barcodes[0].rawValue;
-                if (rawVal) {
-                  if (navigator.vibrate) navigator.vibrate(100);
-                  executeTap(rawVal);
-                  stopCamera();
-                }
-              }
-            } catch (err) {
-              // Ignore single frame detect errors
-            }
-          }
-        }, 400);
-      }
-    } catch (err: any) {
-      setCameraError('Tidak dapat membuka kamera. Pastikan izin kamera telah diberikan.');
-      setIsCameraActive(false);
+    } catch (e) {
+      console.warn('Failed to enumerate video devices', e);
     }
-  };
+  }, []);
 
-  const stopCamera = () => {
+  // Stop Camera & cleanup scanner loop
+  const stopCamera = useCallback(() => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
     if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach(track => track.stop());
+      cameraStreamRef.current.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (e) {
+          // ignore
+        }
+      });
       cameraStreamRef.current = null;
     }
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
     setIsCameraActive(false);
+    setIsTorchOn(false);
+    setHasTorch(false);
+  }, []);
+
+  // Start Camera with selected device or facing mode
+  const startCamera = useCallback(async (customDeviceId?: string, customFacing?: 'environment' | 'user') => {
+    try {
+      stopCamera();
+      setCameraError(null);
+      setIsCameraActive(false);
+
+      const targetFacing = customFacing || facingMode;
+      const targetDeviceId = customDeviceId !== undefined ? customDeviceId : selectedCameraId;
+
+      const videoConstraints: MediaTrackConstraints = targetDeviceId
+        ? { deviceId: { exact: targetDeviceId } }
+        : {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          };
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false
+      });
+
+      cameraStreamRef.current = stream;
+
+      // Check for torch capability
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && typeof (videoTrack as any).getCapabilities === 'function') {
+        const capabilities = (videoTrack as any).getCapabilities();
+        setHasTorch(Boolean(capabilities?.torch));
+      } else {
+        setHasTorch(false);
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+      }
+
+      setIsCameraActive(true);
+      await refreshVideoDevices();
+
+      // BarcodeDetector setup if available
+      let nativeBarcodeDetector: any = null;
+      if ('BarcodeDetector' in window) {
+        try {
+          nativeBarcodeDetector = new (window as any).BarcodeDetector({
+            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8']
+          });
+        } catch (e) {
+          nativeBarcodeDetector = null;
+        }
+      }
+
+      // High-performance QR scanning loop
+      const scanLoop = async () => {
+        if (!videoRef.current || !cameraStreamRef.current) return;
+
+        const video = videoRef.current;
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+          const now = Date.now();
+          // Scan frame every ~100ms
+          if (now - lastScanTimestampRef.current > 100) {
+            lastScanTimestampRef.current = now;
+
+            let canvas = canvasRef.current;
+            if (!canvas) {
+              canvas = document.createElement('canvas');
+              (canvasRef as any).current = canvas;
+            }
+
+            // Downscale to max 640px for ultra fast QR detection with minimal CPU load
+            const maxDimension = 640;
+            let targetWidth = video.videoWidth;
+            let targetHeight = video.videoHeight;
+            if (targetWidth > maxDimension || targetHeight > maxDimension) {
+              if (targetWidth > targetHeight) {
+                targetHeight = Math.round((targetHeight * maxDimension) / targetWidth);
+                targetWidth = maxDimension;
+              } else {
+                targetWidth = Math.round((targetWidth * maxDimension) / targetHeight);
+                targetHeight = maxDimension;
+              }
+            }
+
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+              const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+              // 1. Primary QR scan with jsQR
+              let detectedCode = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'attemptBoth'
+              });
+
+              let rawVal = detectedCode?.data?.trim();
+
+              // 2. Secondary fallback with Native BarcodeDetector (for 1D barcodes)
+              if (!rawVal && nativeBarcodeDetector) {
+                try {
+                  const barcodes = await nativeBarcodeDetector.detect(canvas);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    rawVal = barcodes[0].rawValue.trim();
+                  }
+                } catch (e) {
+                  // ignore frame detection error
+                }
+              }
+
+              if (rawVal && rawVal.length > 0) {
+                // Prevent duplicate rapid triggers of same code within 2.5s
+                if (rawVal !== lastScannedCodeRef.current || (now - (lastScanTimestampRef.current || 0) > 2500)) {
+                  lastScannedCodeRef.current = rawVal;
+                  setLastScannedResult(rawVal);
+                  setIsScanningFrame(true);
+
+                  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+                  if (settings.sound_enabled) {
+                    soundManager.playScanBlip();
+                  }
+
+                  executeTap(rawVal);
+                  setTimeout(() => {
+                    setIsScanningFrame(false);
+                    lastScannedCodeRef.current = '';
+                  }, 2500);
+                }
+              }
+            }
+          }
+        }
+
+        animationFrameIdRef.current = requestAnimationFrame(scanLoop);
+      };
+
+      animationFrameIdRef.current = requestAnimationFrame(scanLoop);
+
+    } catch (err: any) {
+      console.error('Camera start error', err);
+      const errMsg = err?.message || '';
+      if (err.name === 'NotAllowedError' || errMsg.includes('Permission')) {
+        setCameraError('Izin akses kamera ditolak. Silakan izinkan akses kamera di pengaturan browser/perangkat Anda.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setCameraError('Tidak ditemukan perangkat kamera yang tersedia.');
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setCameraError('Kamera sedang digunakan oleh aplikasi lain.');
+      } else {
+        setCameraError(errMsg || 'Tidak dapat membuka kamera. Pastikan browser memiliki izin akses kamera.');
+      }
+      setIsCameraActive(false);
+    }
+  }, [facingMode, selectedCameraId, settings.sound_enabled, stopCamera, refreshVideoDevices]);
+
+  // Flip Camera (Front vs Back)
+  const toggleFacingMode = () => {
+    const nextFacing = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextFacing);
+    setSelectedCameraId('');
+    startCamera('', nextFacing);
+  };
+
+  // Switch specific camera
+  const handleSelectCamera = (deviceId: string) => {
+    setSelectedCameraId(deviceId);
+    startCamera(deviceId, facingMode);
+  };
+
+  // Toggle Flashlight / Torch
+  const toggleTorch = async () => {
+    if (!cameraStreamRef.current) return;
+    try {
+      const track = cameraStreamRef.current.getVideoTracks()[0];
+      if (track && typeof (track as any).applyConstraints === 'function') {
+        const nextTorch = !isTorchOn;
+        await (track as any).applyConstraints({
+          advanced: [{ torch: nextTorch }]
+        });
+        setIsTorchOn(nextTorch);
+      }
+    } catch (e) {
+      console.warn('Torch toggle failed', e);
+    }
   };
 
   useEffect(() => {
@@ -435,7 +619,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
 
       {/* Audio & Method Control Banner */}
       <div className="max-w-4xl mx-auto w-full mb-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-        {/* Method Switcher Tabs (NFC / RFID vs Camera Barcode) */}
+        {/* Method Switcher Tabs (NFC / RFID vs Camera QR Scanner) */}
         <div className="flex items-center justify-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
           <button
             onClick={() => setActiveMethod('nfc_rfid')}
@@ -456,8 +640,8 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
-            <Camera className="w-4 h-4" />
-            <span>Scan Kamera Barcode</span>
+            <QrCode className="w-4 h-4" />
+            <span>Scan Kamera QR Code</span>
           </button>
         </div>
 
@@ -630,22 +814,89 @@ export const TapPage: React.FC<TapPageProps> = () => {
               </div>
             </div>
           ) : (
-            /* CAMERA SCANNER VIEW (QR / BARCODE) */
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 text-center relative overflow-hidden">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Pemindai Barcode / QR Kartu</h3>
+            /* CAMERA SCANNER VIEW (QR CODE / BARCODE) */
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800 text-center relative overflow-hidden transition-all">
+              {/* Header & Controls */}
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-left">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-800">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>Pemindai Kamera QR Santri</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold">
+                        Auto-Scan
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Deteksi otomatis QR Code & Barcode kartu santri
+                    </p>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setActiveMethod('nfc_rfid')}
-                  className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-                >
-                  Kembali ke NFC
-                </button>
+
+                {/* Camera Tool Actions */}
+                <div className="flex items-center gap-1.5">
+                  {/* Torch Toggle if available */}
+                  {hasTorch && (
+                    <button
+                      onClick={toggleTorch}
+                      className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors border ${
+                        isTorchOn 
+                          ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-300' 
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                      title={isTorchOn ? 'Matikan Lampu Senter' : 'Nyalakan Lampu Senter'}
+                    >
+                      {isTorchOn ? <Flashlight className="w-3.5 h-3.5" /> : <FlashlightOff className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+
+                  {/* Switch Camera (Front / Back) */}
+                  <button
+                    onClick={toggleFacingMode}
+                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    title={`Ganti ke kamera ${facingMode === 'environment' ? 'Depan / Webcam' : 'Belakang'}`}
+                  >
+                    <SwitchCamera className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span className="hidden sm:inline text-[11px]">
+                      {facingMode === 'environment' ? 'Kamera Belakang' : 'Kamera Depan'}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMethod('nfc_rfid')}
+                    className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    title="Kembali ke Mode RFID / NFC"
+                  >
+                    Kembali
+                  </button>
+                </div>
               </div>
 
-              <div className="relative w-full aspect-4/3 bg-slate-900 rounded-xl overflow-hidden mb-4 border border-slate-800">
+              {/* Camera Selection Dropdown (if multiple video inputs exist) */}
+              {availableCameras.length > 1 && (
+                <div className="mb-3 text-left">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={selectedCameraId}
+                      onChange={(e) => handleSelectCamera(e.target.value)}
+                      className="w-full text-[11px] p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none"
+                    >
+                      <option value="">-- Pilih Perangkat Kamera ({availableCameras.length} terdeteksi) --</option>
+                      {availableCameras.map((cam, idx) => (
+                        <option key={cam.deviceId || idx} value={cam.deviceId}>
+                          {cam.label || `Kamera ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Video Viewport with Precision Scanning Frame */}
+              <div className="relative w-full aspect-4/3 sm:aspect-16/10 bg-slate-950 rounded-2xl overflow-hidden mb-3 border border-slate-800 shadow-inner">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -654,41 +905,114 @@ export const TapPage: React.FC<TapPageProps> = () => {
                   className="w-full h-full object-cover"
                 />
                 
-                {/* Aiming Reticle */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-48 border-2 border-blue-400/80 rounded-xl relative">
-                    <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1"></div>
-                    <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1"></div>
-                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1"></div>
-                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1"></div>
-                    <div className="w-full h-0.5 bg-blue-500/60 absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
+                {/* Visual Target Reticle with Animated Laser Scan Line */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-4">
+                  <div className={`
+                    w-52 h-52 sm:w-60 sm:h-60 rounded-2xl relative transition-all duration-200
+                    ${isScanningFrame 
+                      ? 'border-2 border-emerald-400 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.5)] scale-105' 
+                      : 'border-2 border-blue-400/80 bg-blue-500/5 shadow-[0_0_15px_rgba(59,130,246,0.3)]'}
+                  `}>
+                    {/* 4 Neon High-Tech Corner Brackets */}
+                    <div className={`absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 rounded-tl-lg transition-colors ${isScanningFrame ? 'border-emerald-400' : 'border-blue-400'}`} />
+                    <div className={`absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 rounded-tr-lg transition-colors ${isScanningFrame ? 'border-emerald-400' : 'border-blue-400'}`} />
+                    <div className={`absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 rounded-bl-lg transition-colors ${isScanningFrame ? 'border-emerald-400' : 'border-blue-400'}`} />
+                    <div className={`absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 rounded-br-lg transition-colors ${isScanningFrame ? 'border-emerald-400' : 'border-blue-400'}`} />
+                    
+                    {/* Animated Laser Scan Line */}
+                    {isCameraActive && (
+                      <div className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-[0_0_8px_#38bdf8] animate-bounce-slow" />
+                    )}
+
+                    {/* Center Crosshair Target */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-40">
+                      <ScanLine className="w-8 h-8 text-blue-300" />
+                    </div>
+                  </div>
+
+                  {/* Realtime Live Scan Status Pill */}
+                  <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-medium border border-white/10 shadow-sm">
+                    <span className={`w-2 h-2 rounded-full ${isScanningFrame ? 'bg-emerald-400 animate-ping' : isCameraActive ? 'bg-blue-400 animate-pulse' : 'bg-slate-400'}`} />
+                    <span>
+                      {isScanningFrame 
+                        ? `QR Terdeteksi: ${lastScannedResult || ''}` 
+                        : isCameraActive 
+                        ? 'Arahkan QR Code Kartu ke Tengah Kotak' 
+                        : 'Menyiapkan Kamera...'}
+                    </span>
                   </div>
                 </div>
 
+                {/* Loading Camera State */}
                 {!isCameraActive && !cameraError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-white p-4">
-                    <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <p className="text-xs text-slate-300">Menyiapkan Kamera...</p>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-white p-4">
+                    <div className="w-9 h-9 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                    <p className="text-xs font-semibold text-slate-200">Mengaktifkan Sensor Kamera...</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Harap izinkan akses kamera jika browser memintanya</p>
                   </div>
                 )}
 
+                {/* Camera Permission or Hardware Error */}
                 {cameraError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/95 text-white p-4">
-                    <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
-                    <p className="text-xs text-slate-200 text-center max-w-xs">{cameraError}</p>
-                    <button
-                      onClick={startCamera}
-                      className="mt-3 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer"
-                    >
-                      Coba Lagi
-                    </button>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/95 text-white p-5">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-2.5 border border-amber-500/30">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-100 mb-1">Akses Kamera Bermasalah</p>
+                    <p className="text-[11px] text-slate-300 text-center max-w-xs mb-3.5 leading-relaxed">
+                      {cameraError}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => startCamera()}
+                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Coba Akses Lagi</span>
+                      </button>
+                      <button
+                        onClick={() => setActiveMethod('nfc_rfid')}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer border border-slate-700"
+                      >
+                        Gunakan NFC / RFID
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Arahkan kamera ke Barcode NIS atau QR Code pada kartu santri.
-              </p>
+              {/* Manual Barcode / QR Code Quick Fallback */}
+              <div className="pt-1">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (inputUid.trim()) {
+                      executeTap(inputUid.trim());
+                      setInputUid('');
+                    }
+                  }}
+                  className="relative flex items-center"
+                >
+                  <input
+                    type="text"
+                    value={inputUid}
+                    onChange={(e) => setInputUid(e.target.value)}
+                    placeholder="Atau ketik UID / scan dengan Barcode Scanner USB..."
+                    className="w-full pl-3 pr-9 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono placeholder:font-sans placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!inputUid.trim()}
+                    className="absolute right-1 p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors cursor-pointer"
+                    title="Kirim Input Barcode / QR"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Mendukung QR Code Santri, Barcode NIS, serta Barcode Scanner USB genggam
+                </p>
+              </div>
             </div>
           )
         ) : (

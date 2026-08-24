@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Menu, 
   Bell, 
@@ -198,68 +199,76 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             </button>
 
             {/* Notifications Popover */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 px-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Notifikasi</h4>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
-                      {notifications.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {notifications.length > 0 && (
-                      <button
-                        onClick={clearNotifications}
-                        className="text-[11px] text-slate-400 hover:text-rose-600 p-1 flex items-center gap-1 cursor-pointer"
-                        title="Hapus Semua"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setShowNotifications(false)}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="max-h-72 overflow-y-auto py-2 space-y-1.5">
-                  {notifications.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
-                      Tidak ada notifikasi baru
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                  transition={{ duration: 0.16, ease: 'easeOut' }}
+                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 px-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Notifikasi</h4>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
+                        {notifications.length}
+                      </span>
                     </div>
-                  ) : (
-                    notifications.map((notif, idx) => (
-                      <div
-                        key={notif.id || `notif-${idx}-${notif.timestamp}`}
-                        onClick={() => markNotificationRead(notif.id)}
-                        className={`p-2.5 rounded-xl text-xs transition-colors cursor-pointer flex gap-2.5 ${
-                          notif.read 
-                            ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' 
-                            : 'bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-slate-800 dark:text-slate-200'
-                        }`}
+                    <div className="flex items-center gap-1">
+                      {notifications.length > 0 && (
+                        <button
+                          onClick={clearNotifications}
+                          className="text-[11px] text-slate-400 hover:text-rose-600 p-1 flex items-center gap-1 cursor-pointer"
+                          title="Hapus Semua"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
                       >
-                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                          notif.type === 'success' ? 'bg-emerald-500' :
-                          notif.type === 'warning' ? 'bg-amber-500' :
-                          notif.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'
-                        }`} />
-                        <div className="flex-1">
-                          <p className="font-semibold">{notif.title}</p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{notif.message}</p>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
-                            {new Date(notif.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
-                          </span>
-                        </div>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto py-2 space-y-1.5">
+                    {notifications.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                        Tidak ada notifikasi baru
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+                    ) : (
+                      notifications.map((notif, idx) => (
+                        <div
+                          key={notif.id || `notif-${idx}-${notif.timestamp}`}
+                          onClick={() => markNotificationRead(notif.id)}
+                          className={`p-2.5 rounded-xl text-xs transition-colors cursor-pointer flex gap-2.5 ${
+                            notif.read 
+                              ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' 
+                              : 'bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                            notif.type === 'success' ? 'bg-emerald-500' :
+                            notif.type === 'warning' ? 'bg-amber-500' :
+                            notif.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'
+                          }`} />
+                          <div className="flex-1">
+                            <p className="font-semibold">{notif.title}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{notif.message}</p>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                              {new Date(notif.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Primary Action: Tap Kartu Baru */}
@@ -290,231 +299,249 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
               </button>
 
-              {showUserDropdown && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowUserDropdown(false)} 
-                  />
-                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
-                    {/* User Card */}
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl mb-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'}
-                          alt={currentUser.name}
-                          referrerPolicy="no-referrer"
-                          className="w-9 h-9 rounded-xl object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {currentUser.name}
-                          </p>
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono truncate">
-                            @{currentUser.username}
-                          </p>
+              <AnimatePresence>
+                {showUserDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowUserDropdown(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                      transition={{ duration: 0.16, ease: 'easeOut' }}
+                      className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-2 z-50"
+                    >
+                      {/* User Card */}
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'}
+                            alt={currentUser.name}
+                            referrerPolicy="no-referrer"
+                            className="w-9 h-9 rounded-xl object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {currentUser.name}
+                            </p>
+                            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono truncate">
+                              @{currentUser.username}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
+                            currentUser.role === 'admin'
+                              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/40'
+                              : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/40'
+                          }`}>
+                            {currentUser.role === 'admin' ? '👑 Administrator' : '👤 Petugas Staff'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {currentUser.phone || ''}
+                          </span>
                         </div>
                       </div>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                          currentUser.role === 'admin'
-                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/40'
-                            : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/40'
-                        }`}>
-                          {currentUser.role === 'admin' ? '👑 Administrator' : '👤 Petugas Staff'}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          {currentUser.phone || ''}
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Menu Items */}
-                    <div className="space-y-0.5 text-xs text-slate-700 dark:text-slate-300">
-                      <button
-                        onClick={() => {
-                          setShowUserDropdown(false);
-                          if (onOpenProfile) onOpenProfile();
-                        }}
-                        className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
-                      >
-                        <UserCheck className="w-4 h-4 text-emerald-500" />
-                        <span>Profil Saya & Kata Sandi</span>
-                      </button>
-
-                      {currentUser.role === 'admin' && (
+                      {/* Menu Items */}
+                      <div className="space-y-0.5 text-xs text-slate-700 dark:text-slate-300">
                         <button
                           onClick={() => {
                             setShowUserDropdown(false);
-                            onNavigate('users');
+                            if (onOpenProfile) onOpenProfile();
                           }}
                           className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
                         >
-                          <Users className="w-4 h-4 text-amber-500" />
-                          <span>Kelola Akun Pengguna</span>
+                          <UserCheck className="w-4 h-4 text-emerald-500" />
+                          <span>Profil Saya & Kata Sandi</span>
                         </button>
-                      )}
 
-                      <button
-                        onClick={() => {
-                          setShowUserDropdown(false);
-                          onNavigate('settings');
-                        }}
-                        className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
-                      >
-                        <Settings className="w-4 h-4 text-slate-400" />
-                        <span>Pengaturan Sistem</span>
-                      </button>
+                        {currentUser.role === 'admin' && (
+                          <button
+                            onClick={() => {
+                              setShowUserDropdown(false);
+                              onNavigate('users');
+                            }}
+                            className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
+                          >
+                            <Users className="w-4 h-4 text-amber-500" />
+                            <span>Kelola Akun Pengguna</span>
+                          </button>
+                        )}
 
-                      <button
-                        onClick={() => {
-                          setShowUserDropdown(false);
-                          onNavigate('kiosk');
-                        }}
-                        className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
-                      >
-                        <Tv className="w-4 h-4 text-blue-500" />
-                        <span>Mode Kios Display TV</span>
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            onNavigate('settings');
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
+                        >
+                          <Settings className="w-4 h-4 text-slate-400" />
+                          <span>Pengaturan Sistem</span>
+                        </button>
 
-                    <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <button
-                        onClick={() => {
-                          setShowUserDropdown(false);
-                          logout();
-                        }}
-                        className="w-full px-3 py-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 text-left text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Keluar (Logout)</span>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            onNavigate('kiosk');
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer"
+                        >
+                          <Tv className="w-4 h-4 text-blue-500" />
+                          <span>Mode Kios Display TV</span>
+                        </button>
+                      </div>
+
+                      <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            logout();
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-2.5 text-left text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>Keluar (Logout)</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
       </header>
 
-      {/* Global Search Modal */}
-      {showSearchModal && (
-        <div 
-          onClick={() => {
-            setShowSearchModal(false);
-            setSearchQuery('');
-          }}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-start justify-center pt-16 px-4 cursor-pointer"
-        >
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 cursor-default"
+      {/* Global Search Modal with AnimatePresence */}
+      <AnimatePresence>
+        {showSearchModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => {
+              setShowSearchModal(false);
+              setSearchQuery('');
+            }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-start justify-center pt-16 px-4 cursor-pointer"
           >
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-              <Search className="w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ketik nama santri, NIS, kelas, atau UID RFID..."
-                className="flex-1 text-sm outline-hidden text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 bg-transparent"
-              />
-              <button
-                onClick={() => {
-                  setShowSearchModal(false);
-                  setSearchQuery('');
-                }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden cursor-default"
+            >
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+                <Search className="w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Ketik nama santri, NIS, kelas, atau UID RFID..."
+                  className="flex-1 text-sm outline-hidden text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 bg-transparent"
+                />
+                <button
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setSearchQuery('');
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-            <div className="p-3 max-h-96 overflow-y-auto space-y-3">
-              {searchQuery.trim() === '' ? (
-                <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                  Ketik sesuatu untuk mulai mencari data santri atau kartu RFID.
-                </div>
-              ) : (
-                <>
-                  {filteredStudents.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500 px-2 mb-1.5">Santri Ditemukan</p>
-                      <div className="space-y-1">
-                        {filteredStudents.map((s, sIdx) => (
-                          <div
-                            key={s.id || `search-s-${s.nis}-${sIdx}`}
-                            onClick={() => {
-                              setShowSearchModal(false);
-                              onNavigate('students');
-                            }}
-                            className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              {s.photo_url && s.photo_url.trim() !== '' ? (
-                                <img src={s.photo_url} alt={s.name} className="w-7 h-7 rounded-lg object-cover" />
-                              ) : (
-                                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                                  <User className="w-4 h-4" />
+              <div className="p-3 max-h-96 overflow-y-auto space-y-3">
+                {searchQuery.trim() === '' ? (
+                  <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
+                    Ketik sesuatu untuk mulai mencari data santri atau kartu RFID.
+                  </div>
+                ) : (
+                  <>
+                    {filteredStudents.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500 px-2 mb-1.5">Santri Ditemukan</p>
+                        <div className="space-y-1">
+                          {filteredStudents.map((s, sIdx) => (
+                            <div
+                              key={s.id || `search-s-${s.nis}-${sIdx}`}
+                              onClick={() => {
+                                setShowSearchModal(false);
+                                onNavigate('students');
+                              }}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                {s.photo_url && s.photo_url.trim() !== '' ? (
+                                  <img src={s.photo_url} alt={s.name} className="w-7 h-7 rounded-lg object-cover" />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                    <User className="w-4 h-4" />
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{s.name}</p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400">NIS: {s.nis} • Kelas {s.class}</p>
                                 </div>
-                              )}
-                              <div>
-                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{s.name}</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">NIS: {s.nis} • Kelas {s.class}</p>
                               </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                                {s.rfid_uid || 'Belum ada kartu'}
+                              </span>
                             </div>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
-                              {s.rfid_uid || 'Belum ada kartu'}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {filteredCards.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500 px-2 mb-1.5">Kartu RFID Ditemukan</p>
-                      <div className="space-y-1">
-                        {filteredCards.map((c, cIdx) => (
-                          <div
-                            key={c.id || `search-c-${c.uid}-${cIdx}`}
-                            onClick={() => {
-                              setShowSearchModal(false);
-                              onNavigate('cards');
-                            }}
-                            className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer transition-colors"
-                          >
-                            <div>
-                              <p className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">{c.uid}</p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400">{c.note || 'Kartu RFID'}</p>
+                    {filteredCards.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500 px-2 mb-1.5">Kartu RFID Ditemukan</p>
+                        <div className="space-y-1">
+                          {filteredCards.map((c, cIdx) => (
+                            <div
+                              key={c.id || `search-c-${c.uid}-${cIdx}`}
+                              onClick={() => {
+                                setShowSearchModal(false);
+                                onNavigate('cards');
+                              }}
+                              className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer transition-colors"
+                            >
+                              <div>
+                                <p className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">{c.uid}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{c.note || 'Kartu RFID'}</p>
+                              </div>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                c.status === 'active' 
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50' 
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                              }`}>
+                                {c.status.toUpperCase()}
+                              </span>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                              c.status === 'active' 
-                                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50' 
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                            }`}>
-                              {c.status.toUpperCase()}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {filteredStudents.length === 0 && filteredCards.length === 0 && (
-                    <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                      Tidak ditemukan data santri atau kartu dengan kata kunci "{searchQuery}".
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                    {filteredStudents.length === 0 && filteredCards.length === 0 && (
+                      <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                        Tidak ditemukan data santri atau kartu dengan kata kunci "{searchQuery}".
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* WhatsApp Integration Management Modal */}
       {isWhatsAppModalOpen && (
         <WhatsAppManagerModal 

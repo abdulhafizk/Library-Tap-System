@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, 
   DoorOpen, 
@@ -255,7 +256,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Metric 1: Total Santri */}
-        <div 
+        <motion.div 
+          whileHover={{ y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.15 }}
           onClick={() => onNavigate('students')}
           className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all cursor-pointer"
         >
@@ -269,10 +273,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
           <p className="text-slate-500 text-sm font-medium">Total Santri</p>
           <h3 className="text-3xl font-bold mt-1 text-slate-900">{students.length}</h3>
-        </div>
+        </motion.div>
 
         {/* Metric 2: Di Perpustakaan (Live) */}
-        <div 
+        <motion.div 
+          whileHover={{ y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.15 }}
           onClick={() => onNavigate('live')}
           className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all cursor-pointer"
         >
@@ -287,10 +294,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
           <p className="text-slate-500 text-sm font-medium">Di Perpustakaan</p>
           <h3 className="text-3xl font-bold mt-1 text-slate-900">{activeVisitsCount}</h3>
-        </div>
+        </motion.div>
 
         {/* Metric 3: Kunjungan Hari Ini */}
-        <div 
+        <motion.div 
+          whileHover={{ y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.15 }}
           onClick={() => onNavigate('visits')}
           className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all cursor-pointer"
         >
@@ -304,10 +314,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
           <p className="text-slate-500 text-sm font-medium">Kunjungan Hari Ini</p>
           <h3 className="text-3xl font-bold mt-1 text-slate-900">{todayVisitsCount}</h3>
-        </div>
+        </motion.div>
 
         {/* Metric 4: Rata-rata Durasi */}
-        <div 
+        <motion.div 
+          whileHover={{ y: -3 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.15 }}
           onClick={() => onNavigate('stats')}
           className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all cursor-pointer"
         >
@@ -323,7 +336,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           <h3 className="text-3xl font-bold mt-1 text-slate-900">
             {averageDurationMinutes} <span className="text-base font-medium text-slate-400">mnt</span>
           </h3>
-        </div>
+        </motion.div>
       </div>
 
       {/* Charts Section */}
