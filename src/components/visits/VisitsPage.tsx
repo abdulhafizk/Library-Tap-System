@@ -10,11 +10,14 @@ import {
   LogOut, 
   ChevronLeft, 
   ChevronRight,
-  Clock
+  Clock,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { exportVisitsToExcel } from '../../utils/exportExcel';
 import { Student } from '../../types';
+import { MonthlyReportModal } from './MonthlyReportModal';
 
 export const VisitsPage: React.FC = () => {
   const { visits, students, manualCheckOut } = useLibrary();
@@ -25,6 +28,7 @@ export const VisitsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'inside' | 'completed'>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showMonthlyReportModal, setShowMonthlyReportModal] = useState<boolean>(false);
 
   const studentsMap = useMemo(() => new Map<string, Student>(students.map(s => [s.id, s])), [students]);
   const uniqueClasses = useMemo(() => Array.from(new Set(students.map(s => s.class))).sort(), [students]);
@@ -90,14 +94,25 @@ export const VisitsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          id="btn-export-visits"
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Excel (.xlsx)</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            id="btn-monthly-pdf-report"
+            onClick={() => setShowMonthlyReportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Laporan Bulanan (PDF)</span>
+          </button>
+
+          <button
+            id="btn-export-visits"
+            onClick={handleExport}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>Export Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -331,6 +346,12 @@ export const VisitsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Monthly Report PDF Modal */}
+      <MonthlyReportModal
+        isOpen={showMonthlyReportModal}
+        onClose={() => setShowMonthlyReportModal(false)}
+      />
     </div>
   );
 };

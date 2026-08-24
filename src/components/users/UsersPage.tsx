@@ -680,8 +680,14 @@ export const UsersPage: React.FC = () => {
 
       {/* ================= MODAL: TAMBAH AKUN BARU ================= */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        <div 
+          onClick={() => setIsAddModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-base">
                 <UserPlus className="w-5 h-5" />
@@ -867,8 +873,14 @@ export const UsersPage: React.FC = () => {
 
       {/* ================= MODAL: EDIT AKUN ================= */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+        <div 
+          onClick={() => setEditingUser(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-base">
                 <Edit3 className="w-5 h-5" />
@@ -1012,8 +1024,14 @@ export const UsersPage: React.FC = () => {
 
       {/* ================= MODAL: GANTI PASSWORD ================= */}
       {changingPasswordUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div 
+          onClick={() => setChangingPasswordUser(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-base">
                 <KeyRound className="w-5 h-5" />
@@ -1100,8 +1118,14 @@ export const UsersPage: React.FC = () => {
 
       {/* ================= MODAL: HAPUS AKUN ================= */}
       {deletingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div 
+          onClick={() => setDeletingUser(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 cursor-default"
+          >
             <div className="flex items-center gap-3 text-rose-600 font-bold text-base">
               <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5" />

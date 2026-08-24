@@ -400,8 +400,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
       {/* Global Search Modal */}
       {showSearchModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-start justify-center pt-16 px-4">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95">
+        <div 
+          onClick={() => {
+            setShowSearchModal(false);
+            setSearchQuery('');
+          }}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-start justify-center pt-16 px-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
               <Search className="w-5 h-5 text-slate-400" />
               <input

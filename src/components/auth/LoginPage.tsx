@@ -333,8 +333,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
 
       {/* Help / Password Reset Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-200 space-y-4">
+        <div 
+          onClick={() => setShowHelpModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-200 space-y-4 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2 text-emerald-400 font-bold text-base">
                 <HelpCircle className="w-5 h-5" />

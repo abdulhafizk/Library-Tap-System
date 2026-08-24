@@ -62,8 +62,14 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-amber-200 dark:border-amber-900/40 overflow-hidden flex flex-col my-auto print:shadow-none print:border-none print:w-full print:max-w-none">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto print:p-0 print:bg-white print:static cursor-pointer"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-amber-200 dark:border-amber-900/40 overflow-hidden flex flex-col my-auto print:shadow-none print:border-none print:w-full print:max-w-none cursor-default"
+      >
         
         {/* Top Control Bar (Hidden when printing) */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-800 text-white print:hidden border-b border-slate-700">

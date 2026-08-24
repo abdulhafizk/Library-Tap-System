@@ -26,7 +26,9 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  GraduationCap
+  GraduationCap,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -42,6 +44,7 @@ import {
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, LibraryVisit } from '../../types';
 import { exportStudentStatsToExcel, StudentStatRow } from '../../utils/exportExcel';
+import { MonthlyReportModal } from '../visits/MonthlyReportModal';
 
 type SortField = 'totalTime' | 'frequency' | 'avgDuration' | 'lastVisit' | 'name' | 'class';
 type SortOrder = 'desc' | 'asc';
@@ -61,6 +64,7 @@ export const StatsPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [showMonthlyReportModal, setShowMonthlyReportModal] = useState<boolean>(false);
 
   // Modal for individual student history inspection
   const [inspectStudent, setInspectStudent] = useState<Student | null>(null);
@@ -345,28 +349,40 @@ export const StatsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Time range switcher */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+        {/* Actions header */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
-            onClick={() => setTimeRange('7days')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              timeRange === '7days' 
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' 
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+            id="btn-stats-monthly-pdf"
+            onClick={() => setShowMonthlyReportModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all cursor-pointer"
           >
-            7 Hari Terakhir
+            <FileText className="w-4 h-4" />
+            <span>Laporan Bulanan (PDF)</span>
           </button>
-          <button
-            onClick={() => setTimeRange('30days')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              timeRange === '30days' 
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' 
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            30 Hari Terakhir
-          </button>
+
+          {/* Time range switcher */}
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+            <button
+              onClick={() => setTimeRange('7days')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                timeRange === '7days' 
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' 
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              7 Hari Terakhir
+            </button>
+            <button
+              onClick={() => setTimeRange('30days')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                timeRange === '30days' 
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs' 
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              30 Hari Terakhir
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1036,8 +1052,14 @@ export const StatsPage: React.FC = () => {
       {/* MODAL: RIWAYAT KUNJUNGAN SPESIFIK SANTRI */}
       {/* ========================================================================= */}
       {inspectStudent && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 my-auto max-h-[90vh] flex flex-col">
+        <div 
+          onClick={() => setInspectStudent(null)}
+          className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 my-auto max-h-[90vh] flex flex-col cursor-default"
+          >
             
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -1154,6 +1176,12 @@ export const StatsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Monthly Report PDF Modal */}
+      <MonthlyReportModal
+        isOpen={showMonthlyReportModal}
+        onClose={() => setShowMonthlyReportModal(false)}
+      />
 
     </div>
   );

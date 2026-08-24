@@ -62,8 +62,14 @@ export const StudentProfileAwardsModal: React.FC<StudentProfileAwardsModalProps>
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto">
-        <div className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[90vh] flex flex-col">
+      <div 
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto cursor-pointer"
+      >
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-auto max-h-[90vh] flex flex-col cursor-default"
+        >
           
           {/* Header Banner */}
           <div className="relative bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-600 p-6 text-white">

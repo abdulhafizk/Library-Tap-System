@@ -751,8 +751,14 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
 
       {/* FULL-SCREEN REALTIME TAP OVERLAY POPUP (TRIGGERS ON CARD TAP) */}
       {currentTapResult && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="w-full max-w-2xl bg-slate-900 rounded-3xl border-2 border-blue-500/50 shadow-2xl p-8 text-center relative overflow-hidden">
+        <div 
+          onClick={clearCurrentTapResult}
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-slate-900 rounded-3xl border-2 border-blue-500/50 shadow-2xl p-8 text-center relative overflow-hidden cursor-default"
+          >
             
             {/* Background Glow */}
             <div className={`absolute -top-24 -left-24 w-64 h-64 rounded-full blur-3xl opacity-30 ${

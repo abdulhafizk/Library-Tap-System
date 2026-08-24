@@ -1,6 +1,6 @@
 {
   "name": "Library Tap System",
-  "description": "Sistem presensi dan perpustakaan pesantren berbasis RFID & QR Code dengan Multi-User Authentication & Hak Akses (Administrator & Staff Petugas), Sirkulasi Peminjaman & Pengembalian Buku, Mode Kios Display TV (Welcome Screen), Gamifikasi & Penghargaan Santri (Literacy Awards & XP Leveling), Cetak Piagam Digital Resmi, integrasi notifikasi WhatsApp otomatis saat tap, jatuh tempo pinjam & apresiasi penghargaan, generator kartu digital, dan analitik kunjungan.",
+  "description": "Sistem presensi dan perpustakaan pesantren berbasis RFID & QR Code dengan Multi-User Authentication & Hak Akses (Administrator & Staff Petugas), Sirkulasi Peminjaman & Pengembalian Buku, Pembuatan & Cetak Laporan Bulanan Kunjungan Format PDF Resmi Administrasi, Mode Kios Display TV (Welcome Screen), Gamifikasi & Penghargaan Santri (Literacy Awards & XP Leveling), Cetak Piagam Digital Resmi, integrasi notifikasi WhatsApp otomatis saat tap, jatuh tempo pinjam & apresiasi penghargaan, generator kartu digital, dan analitik kunjungan.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

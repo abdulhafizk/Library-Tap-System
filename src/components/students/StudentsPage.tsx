@@ -416,8 +416,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
 
       {/* MODAL: Tambah Santri */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div 
+          onClick={() => setIsAddModalOpen(false)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-slate-800 text-base">Tambah Data Santri Baru</h3>
               <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -523,8 +529,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
 
       {/* MODAL: Edit Santri */}
       {editingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div 
+          onClick={() => setEditingStudent(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-slate-800 text-base">Edit Data Santri</h3>
               <button onClick={() => setEditingStudent(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -639,8 +651,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
 
       {/* MODAL: Hubungkan Kartu RFID */}
       {pairingStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+        <div 
+          onClick={() => setPairingStudent(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <Radio className="w-5 h-5 text-emerald-600 animate-pulse" />
@@ -735,8 +753,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
 
       {/* MODAL: Detail Santri */}
       {selectedDetailStudent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+        <div 
+          onClick={() => setSelectedDetailStudent(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-slate-800 text-base">Profil & Riwayat Santri</h3>
               <button onClick={() => setSelectedDetailStudent(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -799,8 +823,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
 
       {/* CONFIRM DELETE MODAL */}
       {deletingId && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 text-center">
+        <div 
+          onClick={() => setDeletingId(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 text-center cursor-default"
+          >
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6" />
             </div>

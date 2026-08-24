@@ -349,8 +349,14 @@ export const CardsPage: React.FC = () => {
 
       {/* MODAL: Register Kartu Baru */}
       {isRegisterModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+        <div 
+          onClick={() => setIsRegisterModalOpen(false)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-slate-800 text-base">Registrasi Kartu RFID Baru</h3>
               <button onClick={() => setIsRegisterModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -427,8 +433,14 @@ export const CardsPage: React.FC = () => {
 
       {/* MODAL: Hubungkan Kartu ke Santri */}
       {isLinkModalOpen && targetCard && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+        <div 
+          onClick={() => setIsLinkModalOpen(false)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 cursor-default"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-slate-800 text-base">Hubungkan Kartu ke Santri</h3>
               <button onClick={() => setIsLinkModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -482,8 +494,14 @@ export const CardsPage: React.FC = () => {
 
       {/* CONFIRM DELETE MODAL */}
       {deletingId && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 text-center">
+        <div 
+          onClick={() => setDeletingId(null)}
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 text-center cursor-default"
+          >
             <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6" />
             </div>

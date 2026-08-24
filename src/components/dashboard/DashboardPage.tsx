@@ -19,7 +19,9 @@ import {
   BookOpen,
   AlertTriangle,
   Plus,
-  Trophy
+  Trophy,
+  FileText,
+  Printer
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -35,6 +37,7 @@ import {
 import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from '../layout/Sidebar';
 import { Student } from '../../types';
+import { MonthlyReportModal } from '../visits/MonthlyReportModal';
 
 interface DashboardPageProps {
   onNavigate: (tab: NavTab) => void;
@@ -59,6 +62,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
   const [quickScanUid, setQuickScanUid] = useState('');
   const [ticker, setTicker] = useState(Date.now());
+  const [showMonthlyReportModal, setShowMonthlyReportModal] = useState(false);
 
   // Update ticker every second for live duration calculation
   useEffect(() => {
@@ -234,6 +238,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
       </div>
 
       {/* 4 Clean Metric Cards */}
+      <div className="flex items-center justify-between pt-1">
+        <h2 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-emerald-600" />
+          Ringkasan Operasional Perpustakaan
+        </h2>
+        <button
+          type="button"
+          onClick={() => setShowMonthlyReportModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Laporan Bulanan (PDF)</span>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Metric 1: Total Santri */}
         <div 
@@ -533,6 +552,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
         </div>
       </div>
+
+      {/* Monthly Report PDF Modal */}
+      <MonthlyReportModal
+        isOpen={showMonthlyReportModal}
+        onClose={() => setShowMonthlyReportModal(false)}
+      />
     </div>
   );
 };
