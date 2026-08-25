@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <div className="flex-1 py-4 px-4 space-y-1 overflow-y-auto">
+        <div className="flex-1 py-4 px-4 space-y-1 overflow-y-auto no-scrollbar">
           <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">
             Menu Utama
           </div>
