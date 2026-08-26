@@ -28,11 +28,15 @@ import {
   BookOpenCheck,
   Radio,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Cloud,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { AppUser, UserRole, UserStatus } from '../../types';
 import { ImageUpload } from '../common/ImageUpload';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 // Preset avatar options for convenience
 const PRESET_AVATARS = [
@@ -51,12 +55,16 @@ export const UsersPage: React.FC = () => {
     addUser, 
     updateUser, 
     deleteUser, 
-    toggleUserStatus 
+    toggleUserStatus,
+    isSupabaseSyncing,
+    syncWithSupabase,
+    pullFromSupabase
   } = useLibrary();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -277,20 +285,56 @@ export const UsersPage: React.FC = () => {
               Kelola Pengguna & Akun Petugas
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl">
-              Administrator utama dapat membuat, mengedit, mengubah password, dan mengatur wewenang akun ustadz/ustadzah staf perpustakaan.
+              Administrator utama dapat membuat, mengedit, mengubah password, dan mengatur wewenang akun ustadz/ustadzah staf perpustakaan. Data tersinkronisasi langsung ke database cloud Supabase.
             </p>
           </div>
 
-          {isAdmin && (
-            <button
-              id="btn-add-new-user"
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-900/40 hover:shadow-emerald-900/60 active:scale-[0.98] transition-all shrink-0 cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Tambah Akun Baru</span>
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {isSupabaseConfigured && (
+              <div className="flex items-center gap-2">
+                <button
+                  id="btn-sync-users-supabase"
+                  onClick={async () => {
+                    setIsManualSyncing(true);
+                    await syncWithSupabase();
+                    setIsManualSyncing(false);
+                  }}
+                  disabled={isSupabaseSyncing || isManualSyncing}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-emerald-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                  title="Simpan & Sinkronkan akun pengguna ke Supabase Database"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing || isManualSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSupabaseSyncing || isManualSyncing ? 'Menyinkronkan...' : 'Sinkronkan ke Database'}</span>
+                </button>
+
+                <button
+                  id="btn-pull-users-supabase"
+                  onClick={async () => {
+                    setIsManualSyncing(true);
+                    await pullFromSupabase();
+                    setIsManualSyncing(false);
+                  }}
+                  disabled={isSupabaseSyncing || isManualSyncing}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                  title="Tarik data akun pengguna terbaru dari Supabase Database"
+                >
+                  <Database className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Tarik dari Database</span>
+                </button>
+              </div>
+            )}
+
+            {isAdmin && (
+              <button
+                id="btn-add-new-user"
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-900/40 hover:shadow-emerald-900/60 active:scale-[0.98] transition-all shrink-0 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Tambah Akun Baru</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Stats Row */}

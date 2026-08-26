@@ -13,6 +13,9 @@ import {
   Upload, 
   Layers, 
   ShieldCheck,
+  ShieldAlert,
+  Lock,
+  Timer,
   CheckCircle2,
   Terminal,
   Moon,
@@ -24,6 +27,8 @@ import {
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { WhatsAppManagerModal } from './WhatsAppManagerModal';
+import { testSupabaseConnection, SUPABASE_URL, isSupabaseConfigured } from '../../lib/supabase';
+import { Wifi, RefreshCw } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { 
@@ -36,10 +41,16 @@ export const SettingsPage: React.FC = () => {
     students, 
     cards, 
     visits,
+    books,
+    loans,
     whatsappLogs,
     openWhatsAppModal,
     triggerScheduleCheckNow,
-    sendCustomWhatsAppReminder
+    sendCustomWhatsAppReminder,
+    isSupabaseSyncing,
+    lastRealtimeSync,
+    syncWithSupabase,
+    pullFromSupabase
   } = useLibrary();
 
   const [activeTab, setActiveTab] = useState<'general' | 'whatsapp' | 'rfid' | 'supabase' | 'backup'>('general');
@@ -47,6 +58,74 @@ export const SettingsPage: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isFullWaModalOpen, setIsFullWaModalOpen] = useState(false);
   const [testReminderLoading, setTestReminderLoading] = useState(false);
+  const [supabaseTestLoading, setSupabaseTestLoading] = useState(false);
+  const [supabaseSyncLoading, setSupabaseSyncLoading] = useState(false);
+  const [supabasePullLoading, setSupabasePullLoading] = useState(false);
+  const [syncStatusMessage, setSyncStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSyncToSupabase = async () => {
+    setSupabaseSyncLoading(true);
+    setSyncStatusMessage(null);
+    try {
+      const res = await syncWithSupabase();
+      setSyncStatusMessage({
+        type: res.success ? 'success' : 'error',
+        text: res.message
+      });
+    } catch (err: any) {
+      setSyncStatusMessage({
+        type: 'error',
+        text: err?.message || String(err)
+      });
+    } finally {
+      setSupabaseSyncLoading(false);
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    setSupabasePullLoading(true);
+    setSyncStatusMessage(null);
+    try {
+      const res = await pullFromSupabase();
+      setSyncStatusMessage({
+        type: res.success ? 'success' : 'error',
+        text: res.message
+      });
+    } catch (err: any) {
+      setSyncStatusMessage({
+        type: 'error',
+        text: err?.message || String(err)
+      });
+    } finally {
+      setSupabasePullLoading(false);
+    }
+  };
+  const [supabaseTestResult, setSupabaseTestResult] = useState<{
+    tested: boolean;
+    connected: boolean;
+    message: string;
+  } | null>(null);
+
+  const handleTestSupabase = async () => {
+    setSupabaseTestLoading(true);
+    setSupabaseTestResult(null);
+    try {
+      const res = await testSupabaseConnection();
+      setSupabaseTestResult({
+        tested: true,
+        connected: res.connected,
+        message: res.message
+      });
+    } catch (err: any) {
+      setSupabaseTestResult({
+        tested: true,
+        connected: false,
+        message: String(err?.message || err)
+      });
+    } finally {
+      setSupabaseTestLoading(false);
+    }
+  };
 
   // Form State
   const [formState, setFormState] = useState({
@@ -300,6 +379,43 @@ export const SettingsPage: React.FC = () => {
                 onChange={(e) => setFormState({ ...formState, max_visit_minutes: Number(e.target.value) })}
                 className="w-full p-3 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+
+          {/* Idle Session Security & Auto-Logout Notice */}
+          <div className="p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 border border-amber-300 dark:border-amber-800">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                      Keamanan Sesi Petugas (Idle Session Timeout)
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      Aktif 60 Menit
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                    Petugas otomatis di-logout setelah <strong>60 menit</strong> tidak ada aktivitas. Dialog peringatan muncul pada menit ke-<strong>50</strong> (sisa 10 menit).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                id="btn-simulate-idle-warning"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('simulate-idle-warning'));
+                }}
+                className="self-start sm:self-center px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                title="Buka dialog peringatan 50 menit sekarang untuk pengujian"
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>Uji Peringatan Sesi (Simulasi 50 Menit)</span>
+              </button>
             </div>
           </div>
 
@@ -563,19 +679,151 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 3: Skema Supabase SQL */}
       {activeTab === 'supabase' && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5 animate-in fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6 animate-in fade-in">
+          {/* Connection Status Header Banner */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-slate-800/80 dark:to-blue-950/30 border border-blue-200 dark:border-blue-900/50 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                      Integrasi Database Supabase
+                    </h3>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      Terkonfigurasi
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      <RefreshCw className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />
+                      Auto-Refresh 5 Detik
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                    Endpoint Proyek: <code className="font-mono text-blue-600 dark:text-blue-400 font-semibold">{SUPABASE_URL}</code>
+                    {lastRealtimeSync && (
+                      <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400">
+                        • Sinkron terakhir: {new Date(lastRealtimeSync).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} WIB
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                id="btn-test-supabase-connection"
+                disabled={supabaseTestLoading}
+                onClick={handleTestSupabase}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer whitespace-nowrap self-start sm:self-center disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${supabaseTestLoading ? 'animate-spin' : ''}`} />
+                <span>{supabaseTestLoading ? 'Memeriksa Koneksi...' : 'Uji Koneksi Supabase'}</span>
+              </button>
+            </div>
+
+            {/* Test result message feedback */}
+            {supabaseTestResult && (
+              <div className={`p-3.5 rounded-xl text-xs flex items-start gap-2.5 animate-in fade-in ${
+                supabaseTestResult.connected 
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
+                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+              }`}>
+                {supabaseTestResult.connected ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <div className="leading-relaxed">
+                  <span className="font-bold block mb-0.5">{supabaseTestResult.connected ? 'Status Koneksi Terhubung' : 'Hasil Pengecekan'}</span>
+                  {supabaseTestResult.message}
+                </div>
+              </div>
+            )}
+
+            {/* Cloud Data Synchronization Action Block */}
+            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Sinkronisasi Data Perpustakaan ke Cloud Supabase
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {students.length} Santri • {books.length} Buku • {cards.length} Kartu RFID • {visits.length} Riwayat Presensi
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  id="btn-sync-to-supabase"
+                  disabled={supabaseSyncLoading || isSupabaseSyncing}
+                  onClick={handleSyncToSupabase}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Upload className={`w-3.5 h-3.5 ${supabaseSyncLoading ? 'animate-bounce' : ''}`} />
+                  <span>{supabaseSyncLoading ? 'Mengunggah...' : 'Sinkronkan ke Cloud'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-pull-from-supabase"
+                  disabled={supabasePullLoading || isSupabaseSyncing}
+                  onClick={handlePullFromSupabase}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Download className={`w-3.5 h-3.5 ${supabasePullLoading ? 'animate-bounce' : ''}`} />
+                  <span>{supabasePullLoading ? 'Memuat...' : 'Tarik Data Cloud'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sync feedback message */}
+            {syncStatusMessage && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-in fade-in ${
+                syncStatusMessage.type === 'success'
+                  ? 'bg-emerald-100/70 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
+                  : 'bg-rose-100/70 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200'
+              }`}>
+                {syncStatusMessage.type === 'success' ? (
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{syncStatusMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Guide Card */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-xs space-y-2">
+            <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <span>Langkah Cepat Setup Database:</span>
+            </h4>
+            <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-400 pl-1 leading-relaxed">
+              <li>Klik tombol <strong>"Salin Skema SQL"</strong> di bawah ini.</li>
+              <li>Buka dashboard Supabase Anda di <code className="font-mono text-blue-600 dark:text-blue-400">wucnvwjkbvrsghkdumbh.supabase.co</code> &rarr; pilih menu <strong>SQL Editor</strong>.</li>
+              <li>Klik <strong>New Query</strong>, tempelkan (*Paste*) skrip SQL, lalu klik tombol hijau <strong>Run</strong>.</li>
+              <li>Tabel otomatis terbuat lengkap dengan trigger durasi dan Row Level Security (RLS).</li>
+            </ol>
+          </div>
+
+          {/* SQL Viewer and Copy Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <div>
               <div className="flex items-center gap-2">
-                <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base">Struktur Database Supabase PostgreSQL</h3>
+                <Terminal className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Skrip DDL PostgreSQL (Siap Dijalankan)</h3>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                DDL Script lengkap dengan tabel, relasi foreign key, trigger durasi otomatis, index pencarian, dan RLS.
+                Mencakup tabel students, rfid_cards, library_visits, books, book_loans, users, trigger durasi, dan RLS policies.
               </p>
             </div>
 
             <button
+              id="btn-copy-sql-schema"
+              type="button"
               onClick={handleCopySql}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
             >
@@ -584,7 +832,7 @@ export const SettingsPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto max-h-[420px] border border-slate-800 leading-relaxed">
+          <div className="p-4 rounded-2xl bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto max-h-[380px] border border-slate-800 leading-relaxed">
             <pre>{supabaseSchema}</pre>
           </div>
 
@@ -602,8 +850,8 @@ export const SettingsPage: React.FC = () => {
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">id, student_id, check_in, check_out, duration</span>
             </div>
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <span className="font-bold text-slate-800 dark:text-slate-200 block">4. users</span>
-              <span className="text-slate-500 dark:text-slate-400 text-[11px]">id, name, email, role (admin/staff)</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 block">4. books & book_loans</span>
+              <span className="text-slate-500 dark:text-slate-400 text-[11px]">code, title, author, loans, fine_amount</span>
             </div>
           </div>
         </div>

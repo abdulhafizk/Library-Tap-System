@@ -764,6 +764,7 @@ CREATE TABLE IF NOT EXISTS book_loans (
 );
 
 -- 7. Indexes for fast RFID lookup and reporting
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_rfid_cards_uid ON rfid_cards(uid);
 CREATE INDEX IF NOT EXISTS idx_students_nis ON students(nis);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(class);
@@ -801,6 +802,8 @@ ALTER TABLE library_visits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE books ENABLE ROW LEVEL SECURITY;
 ALTER TABLE book_loans ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Allow authenticated read for users" ON users FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated write for users" ON users FOR ALL USING (true);
 CREATE POLICY "Allow authenticated read for all" ON students FOR SELECT USING (true);
 CREATE POLICY "Allow authenticated read for cards" ON rfid_cards FOR SELECT USING (true);
 CREATE POLICY "Allow authenticated read for visits" ON library_visits FOR SELECT USING (true);

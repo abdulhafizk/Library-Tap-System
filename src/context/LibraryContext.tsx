@@ -31,6 +31,38 @@ import {
   sendWhatsAppMessage, 
   renderWhatsAppTemplate 
 } from '../utils/whatsappUtils';
+import { 
+  syncAllToSupabase, 
+  fetchAllFromSupabase, 
+  recordVisitToSupabase,
+  updateVisitInSupabase,
+  deleteVisitFromSupabase,
+  saveUserToSupabase,
+  updateUserInSupabase,
+  deleteUserFromSupabase,
+  fetchUsersFromSupabase,
+  insertStudentToSupabase,
+  updateStudentInSupabase,
+  deleteStudentFromSupabase,
+  insertBookToSupabase,
+  updateBookInSupabase,
+  deleteBookFromSupabase,
+  insertCardToSupabase,
+  updateCardInSupabase,
+  deleteCardFromSupabase,
+  insertLoanToSupabase,
+  updateLoanInSupabase,
+  deleteLoanFromSupabase,
+  subscribeToAllDatabaseChanges
+} from '../lib/supabaseSync';
+import { 
+  isSupabaseConfigured,
+  signInWithSupabase,
+  signOutWithSupabase,
+  signUpWithSupabase,
+  getCurrentSupabaseUser,
+  subscribeToSupabaseAuth
+} from '../lib/supabase';
 
 interface LibraryContextType {
   students: Student[];
@@ -116,8 +148,13 @@ interface LibraryContextType {
   clearNotifications: () => void;
   resetToDefaultData: () => void;
   
-  // Supabase SQL
+  // Supabase Cloud Sync
   supabaseSchema: string;
+  isSupabaseSyncing: boolean;
+  isRealtimeConnected: boolean;
+  lastRealtimeSync: string | null;
+  syncWithSupabase: () => Promise<{ success: boolean; message: string }>;
+  pullFromSupabase: () => Promise<{ success: boolean; message: string }>;
 }
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
@@ -288,6 +325,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [lastRealtimeSync, setLastRealtimeSync] = useState<string | null>(() => new Date().toISOString());
+  const isSilentFetchingRef = useRef(false);
 
   const [currentTapResult, setCurrentTapResult] = useState<TapResult | null>(null);
   const [isProcessingTap, setIsProcessingTap] = useState(false);
@@ -354,6 +394,288 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
   }, [settings.dark_mode]);
+
+  // Synchronize with Supabase Auth Session, Initial Database Hydration & Realtime Subscriptions
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    // 1. Check if there is an active Supabase user session on startup
+    getCurrentSupabaseUser().then((supaUser) => {
+      if (supaUser) {
+        setCurrentUser(prev => prev ? { ...prev, ...supaUser } : supaUser);
+      }
+    }).catch(() => {});
+
+    // 2. Fetch latest data directly from Supabase tables to sync app state on startup
+    fetchAllFromSupabase().then((res) => {
+      if (res.success) {
+        if (res.students && res.students.length > 0) {
+          setStudents(res.students);
+        }
+        if (res.books && res.books.length > 0) {
+          setBooks(res.books);
+        }
+        if (res.cards && res.cards.length > 0) {
+          setCards(res.cards);
+        }
+        if (res.visits && res.visits.length > 0) {
+          setVisits(res.visits);
+        }
+        if (res.loans && res.loans.length > 0) {
+          setLoans(res.loans);
+        }
+        if (res.users && res.users.length > 0) {
+          setUsers(prev => {
+            const map = new Map<string, AppUser>();
+            prev.forEach(u => map.set(u.email.toLowerCase(), u));
+            res.users!.forEach(u => {
+              const existing = map.get(u.email.toLowerCase());
+              map.set(u.email.toLowerCase(), existing ? { ...existing, ...u } : u);
+            });
+            return Array.from(map.values());
+          });
+        }
+      }
+    }).catch((err) => {
+      console.warn('Initial Supabase fetch warning:', err);
+    });
+
+    // 3. Listen to real-time auth events (sign in, sign out, token refresh)
+    const { unsubscribe: unsubAuth } = subscribeToSupabaseAuth((supaUser, event) => {
+      if (event === 'SIGNED_IN' && supaUser) {
+        setCurrentUser(supaUser);
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
+    // 4. Listen to real-time Postgres changes across public tables (INSERT, UPDATE, DELETE)
+    const { unsubscribe: unsubRealtime } = subscribeToAllDatabaseChanges({
+      onStudentChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          const delNis = oldRow?.nis;
+          setStudents(prev => prev.filter(s => s.id !== delId && (!delNis || s.nis !== delNis)));
+          setCards(prev => prev.map(c => c.student_id === delId ? { ...c, student_id: null } : c));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: Student = {
+            id: newRow.id,
+            nis: newRow.nis,
+            name: newRow.name,
+            class: newRow.class,
+            gender: newRow.gender,
+            photo_url: newRow.photo_url || '',
+            phone: newRow.phone || '',
+            status: newRow.status || 'active',
+            created_at: newRow.created_at,
+          };
+          setStudents(prev => {
+            const exists = prev.some(s => s.id === item.id || s.nis === item.nis);
+            if (exists) {
+              return prev.map(s => (s.id === item.id || s.nis === item.nis) ? item : s);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onBookChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          const delCode = oldRow?.code;
+          setBooks(prev => prev.filter(b => b.id !== delId && (!delCode || b.code !== delCode)));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: Book = {
+            id: newRow.id,
+            code: newRow.code,
+            title: newRow.title,
+            author: newRow.author,
+            publisher: newRow.publisher || '',
+            year: newRow.year || undefined,
+            category: newRow.category,
+            rack_location: newRow.rack_location,
+            total_stock: newRow.total_stock,
+            available_stock: newRow.available_stock,
+            cover_url: newRow.cover_url || '',
+            isbn: newRow.isbn || '',
+            created_at: newRow.created_at,
+          };
+          setBooks(prev => {
+            const exists = prev.some(b => b.id === item.id || b.code === item.code);
+            if (exists) {
+              return prev.map(b => (b.id === item.id || b.code === item.code) ? item : b);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onCardChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          const delUid = oldRow?.uid;
+          setCards(prev => prev.filter(c => c.id !== delId && (!delUid || c.uid !== delUid)));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: RfidCard = {
+            id: newRow.id,
+            uid: newRow.uid,
+            student_id: newRow.student_id || null,
+            status: newRow.status || 'active',
+            registered_at: newRow.registered_at || new Date().toISOString(),
+            note: newRow.note || '',
+          };
+          setCards(prev => {
+            const exists = prev.some(c => c.id === item.id || c.uid === item.uid);
+            if (exists) {
+              return prev.map(c => (c.id === item.id || c.uid === item.uid) ? item : c);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onVisitChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          setVisits(prev => prev.filter(v => v.id !== delId));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: LibraryVisit = {
+            id: newRow.id,
+            student_id: newRow.student_id,
+            rfid_card_id: newRow.rfid_card_id,
+            rfid_uid: newRow.rfid_uid,
+            check_in: newRow.check_in,
+            check_out: newRow.check_out,
+            duration_minutes: newRow.duration_minutes,
+            status: newRow.status,
+            created_at: newRow.created_at,
+            notes: newRow.notes || '',
+          };
+          setVisits(prev => {
+            const exists = prev.some(v => v.id === item.id);
+            if (exists) {
+              return prev.map(v => v.id === item.id ? item : v);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onLoanChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          const delCode = oldRow?.loan_code;
+          setLoans(prev => prev.filter(l => l.id !== delId && (!delCode || l.loan_code !== delCode)));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: BookLoan = {
+            id: newRow.id,
+            loan_code: newRow.loan_code,
+            student_id: newRow.student_id,
+            book_id: newRow.book_id,
+            borrow_date: newRow.borrow_date,
+            due_date: newRow.due_date,
+            return_date: newRow.return_date,
+            status: newRow.status,
+            fine_amount: Number(newRow.fine_amount) || 0,
+            notes: newRow.notes || '',
+            created_at: newRow.created_at,
+          };
+          setLoans(prev => {
+            const exists = prev.some(l => l.id === item.id || l.loan_code === item.loan_code);
+            if (exists) {
+              return prev.map(l => (l.id === item.id || l.loan_code === item.loan_code) ? item : l);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onUserChange: (event, newRow, oldRow) => {
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          const delEmail = oldRow?.email?.toLowerCase();
+          setUsers(prev => prev.filter(u => u.id !== delId && (!delEmail || u.email.toLowerCase() !== delEmail)));
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const item: AppUser = {
+            id: newRow.id,
+            name: newRow.name,
+            email: newRow.email,
+            username: newRow.username || newRow.email?.split('@')[0] || 'petugas',
+            role: newRow.role || 'staff',
+            avatar: newRow.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+            phone: newRow.phone || '',
+            status: newRow.status || 'active',
+            is_default: newRow.role === 'admin' && (newRow.email?.startsWith('admin') || newRow.name?.toLowerCase().includes('admin')),
+            created_at: newRow.created_at || new Date().toISOString(),
+          };
+          setUsers(prev => {
+            const exists = prev.some(u => u.id === item.id || u.email.toLowerCase() === item.email.toLowerCase());
+            if (exists) {
+              return prev.map(u => (u.id === item.id || u.email.toLowerCase() === item.email.toLowerCase()) ? item : u);
+            }
+            return [item, ...prev];
+          });
+        }
+      },
+      onStatusChange: (status) => {
+        setIsRealtimeConnected(status === 'CONNECTED');
+      },
+    });
+
+    return () => {
+      unsubAuth();
+      unsubRealtime();
+    };
+  }, []);
+
+  // 5-Second Automatic Realtime Background Polling Sync
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    const silentPollDatabase = async () => {
+      if (isSilentFetchingRef.current) return;
+      isSilentFetchingRef.current = true;
+      try {
+        const res = await fetchAllFromSupabase();
+        if (res.success) {
+          if (res.students !== undefined) {
+            setStudents(res.students);
+          }
+          if (res.books !== undefined) {
+            setBooks(res.books);
+          }
+          if (res.cards !== undefined) {
+            setCards(res.cards);
+          }
+          if (res.visits !== undefined) {
+            setVisits(res.visits);
+          }
+          if (res.loans !== undefined) {
+            setLoans(res.loans);
+          }
+          if (res.users !== undefined && res.users.length > 0) {
+            setUsers(prev => {
+              const map = new Map<string, AppUser>();
+              prev.forEach(u => map.set(u.email.toLowerCase(), u));
+              res.users!.forEach(u => {
+                const existing = map.get(u.email.toLowerCase());
+                map.set(u.email.toLowerCase(), existing ? { ...existing, ...u } : u);
+              });
+              return Array.from(map.values());
+            });
+          }
+          setLastRealtimeSync(new Date().toISOString());
+          setIsRealtimeConnected(true);
+        }
+      } catch (err) {
+        console.debug('5s database background refresh:', err);
+      } finally {
+        isSilentFetchingRef.current = false;
+      }
+    };
+
+    // Run every 5000 milliseconds (5 seconds)
+    const intervalId = setInterval(silentPollDatabase, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
   const toggleDarkMode = useCallback(() => {
     setSettings(prev => {
@@ -596,6 +918,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return next;
       });
 
+      // Background Supabase Visit Sync
+      recordVisitToSupabase(updatedVisit);
+
       if (settings.sound_enabled) {
         soundManager.playCheckOutSound();
       }
@@ -669,6 +994,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
 
       setVisits(prev => [newVisit, ...prev]);
+      recordVisitToSupabase(newVisit);
 
       if (settings.sound_enabled) {
         soundManager.playCheckInSound();
@@ -732,21 +1058,28 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const manualCheckOut = useCallback((visitId: string) => {
     const nowIso = new Date().toISOString();
+    let updatedVisit: LibraryVisit | null = null;
     setVisits(prev => prev.map(v => {
       if (v.id === visitId && v.status === 'inside') {
         const checkInTime = new Date(v.check_in);
         const checkOutTime = new Date(nowIso);
         const durationMins = Math.max(1, Math.round((checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60)));
-        return {
+        const mod: LibraryVisit = {
           ...v,
           check_out: nowIso,
           duration_minutes: durationMins,
           status: 'completed',
           notes: (v.notes ? v.notes + ' ' : '') + '(Check-out manual oleh petugas)'
         };
+        updatedVisit = mod;
+        return mod;
       }
       return v;
     }));
+
+    if (updatedVisit) {
+      updateVisitInSupabase(updatedVisit.id, updatedVisit).catch(() => {});
+    }
     pushNotification('Check-out Manual', 'Santri berhasil di-checkout manual oleh petugas.', 'info');
   }, [pushNotification]);
 
@@ -758,20 +1091,34 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       created_at: new Date().toISOString(),
     };
     setStudents(prev => [newStudent, ...prev]);
+    insertStudentToSupabase(newStudent).catch(err => console.warn('Supabase insert student:', err));
     pushNotification('Santri Ditambahkan', `${newStudent.name} berhasil didaftarkan.`, 'success');
     return newStudent;
   }, [pushNotification]);
 
   const updateStudent = useCallback((id: string, updates: Partial<Student>) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    let updatedStudent: Student | null = null;
+    setStudents(prev => prev.map(s => {
+      if (s.id === id) {
+        const updated = { ...s, ...updates };
+        updatedStudent = updated;
+        return updated;
+      }
+      return s;
+    }));
+    if (updatedStudent) {
+      updateStudentInSupabase(id, updates).catch(err => console.warn('Supabase update student:', err));
+    }
     pushNotification('Santri Diperbarui', 'Data santri berhasil disimpan.', 'info');
   }, [pushNotification]);
 
   const deleteStudent = useCallback((id: string) => {
+    const toDelete = students.find(s => s.id === id);
     setStudents(prev => prev.filter(s => s.id !== id));
     setCards(prev => prev.map(c => c.student_id === id ? { ...c, student_id: null } : c));
+    deleteStudentFromSupabase({ id, nis: toDelete?.nis }).catch(err => console.warn('Supabase delete student:', err));
     pushNotification('Santri Dihapus', 'Data santri berhasil dihapus.', 'info');
-  }, [pushNotification]);
+  }, [students, pushNotification]);
 
   const linkCardToStudent = useCallback((studentId: string, cardUid: string): boolean => {
     const cleanUid = cardUid.trim().toUpperCase();
@@ -793,15 +1140,17 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
 
     if (existingCard) {
+      const updatedCard: RfidCard = { ...existingCard, student_id: studentId, status: 'active' };
       setCards(prev => prev.map(c => {
         if (c.uid === cleanUid) {
-          return { ...c, student_id: studentId, status: 'active' };
+          return updatedCard;
         }
         if (c.student_id === studentId) {
           return { ...c, student_id: null };
         }
         return c;
       }));
+      updateCardInSupabase(updatedCard.id, { student_id: studentId, status: 'active' }).catch(() => {});
     } else {
       const newCard: RfidCard = {
         id: generateUniqueId('c'),
@@ -812,6 +1161,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         note: 'Didaftarkan dari profil santri'
       };
       setCards(prev => [newCard, ...prev]);
+      insertCardToSupabase(newCard).catch(() => {});
     }
 
     pushNotification('Kartu Berhasil Dihubungkan', `RFID ${cleanUid} telah aktif untuk santri.`, 'success');
@@ -820,7 +1170,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const unlinkCardFromStudent = useCallback((studentId: string) => {
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, rfid_uid: undefined } : s));
-    setCards(prev => prev.map(c => c.student_id === studentId ? { ...c, student_id: null } : c));
+    setCards(prev => prev.map(c => {
+      if (c.student_id === studentId) {
+        const unlinked: RfidCard = { ...c, student_id: null };
+        updateCardInSupabase(c.id, { student_id: null }).catch(() => {});
+        return unlinked;
+      }
+      return c;
+    }));
     pushNotification('Kartu Dilepas', 'Kartu RFID telah diputus dari profil santri.', 'info');
   }, [pushNotification]);
 
@@ -843,6 +1200,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setCards(prev => [newCard, ...prev]);
+    insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
     pushNotification('Kartu RFID Terdaftar', `Kartu ${cleanUid} siap digunakan.`, 'success');
     return newCard;
   }, [cards, pushNotification]);
@@ -860,12 +1218,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
     });
     setCards(prev => [...newCards, ...prev]);
+    newCards.forEach(c => insertCardToSupabase(c).catch(() => {}));
     pushNotification('Batch Kartu Terdaftar', `${newCards.length} kartu baru berhasil didaftarkan.`, 'success');
     return newCards;
   }, [pushNotification]);
 
   const updateCardStatus = useCallback((id: string, status: RfidCard['status']) => {
-    setCards(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+    let updatedCard: RfidCard | null = null;
+    setCards(prev => prev.map(c => {
+      if (c.id === id) {
+        const mod: RfidCard = { ...c, status };
+        updatedCard = mod;
+        return mod;
+      }
+      return c;
+    }));
+    if (updatedCard) {
+      updateCardInSupabase(id, { status }).catch(() => {});
+    }
     pushNotification('Status Kartu', `Status kartu diubah menjadi ${status.toUpperCase()}.`, 'info');
   }, [pushNotification]);
 
@@ -875,6 +1245,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStudents(prev => prev.map(s => s.id === card.student_id ? { ...s, rfid_uid: undefined } : s));
     }
     setCards(prev => prev.filter(c => c.id !== id));
+    deleteCardFromSupabase({ id, uid: card?.uid }).catch(err => console.warn('Supabase delete card:', err));
     pushNotification('Kartu Dihapus', 'Kartu RFID berhasil dihapus dari database.', 'info');
   }, [cards, pushNotification]);
 
@@ -886,12 +1257,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       created_at: new Date().toISOString(),
     };
     setBooks(prev => [newBook, ...prev]);
+    insertBookToSupabase(newBook).catch(err => console.warn('Supabase insert book:', err));
     pushNotification('Buku Ditambahkan', `"${newBook.title}" berhasil ditambahkan ke katalog.`, 'success');
     return newBook;
   }, [pushNotification]);
 
   const updateBook = useCallback((id: string, updates: Partial<Book>) => {
-    setBooks(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    let updatedBook: Book | null = null;
+    setBooks(prev => prev.map(b => {
+      if (b.id === id) {
+        const mod = { ...b, ...updates };
+        updatedBook = mod;
+        return mod;
+      }
+      return b;
+    }));
+    if (updatedBook) {
+      updateBookInSupabase(id, updates).catch(err => console.warn('Supabase update book:', err));
+    }
     pushNotification('Buku Diperbarui', 'Data buku berhasil disimpan.', 'info');
   }, [pushNotification]);
 
@@ -902,9 +1285,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       pushNotification('Gagal Menghapus Buku', 'Buku ini sedang dalam status dipinjam oleh santri!', 'error');
       return;
     }
+    const toDelete = books.find(b => b.id === id);
     setBooks(prev => prev.filter(b => b.id !== id));
+    deleteBookFromSupabase({ id, code: toDelete?.code }).catch(err => console.warn('Supabase delete book:', err));
     pushNotification('Buku Dihapus', 'Buku berhasil dihapus dari katalog.', 'info');
-  }, [loans, pushNotification]);
+  }, [books, loans, pushNotification]);
 
   // Circulation Actions
   const borrowBook = useCallback(async (data: { 
@@ -957,7 +1342,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Update state
     setLoans(prev => [newLoan, ...prev]);
-    setBooks(prev => prev.map(b => b.id === book.id ? { ...b, available_stock: Math.max(0, b.available_stock - 1) } : b));
+    const updatedBook = { ...book, available_stock: Math.max(0, book.available_stock - 1) };
+    setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+
+    // Save to Supabase
+    insertLoanToSupabase(newLoan).catch(err => console.warn('Supabase insert loan:', err));
+    updateBookInSupabase(book.id, { available_stock: updatedBook.available_stock }).catch(() => {});
 
     if (settings.sound_enabled) {
       soundManager.playCheckInSound();
@@ -1031,21 +1421,31 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       computedFine = daysOverdue * 500; // Rp 500 per day default
     }
 
-    // Update loan
-    setLoans(prev => prev.map(l => l.id === loanId ? {
-      ...l,
+    const updatedLoan: BookLoan = {
+      ...loan,
       return_date: nowIso,
       status: 'returned',
       fine_amount: computedFine,
-      notes: notes ? (l.notes ? `${l.notes} | ${notes}` : notes) : l.notes
-    } : l));
+      notes: notes ? (loan.notes ? `${loan.notes} | ${notes}` : notes) : loan.notes
+    };
+
+    // Update loan
+    setLoans(prev => prev.map(l => l.id === loanId ? updatedLoan : l));
+    updateLoanInSupabase(loanId, {
+      return_date: nowIso,
+      status: 'returned',
+      fine_amount: computedFine,
+      notes: updatedLoan.notes
+    }).catch(err => console.warn('Supabase update loan:', err));
 
     // Restore book available stock
     if (book) {
-      setBooks(prev => prev.map(b => b.id === book.id ? {
-        ...b,
-        available_stock: Math.min(b.total_stock, b.available_stock + 1)
-      } : b));
+      const updatedBook = {
+        ...book,
+        available_stock: Math.min(book.total_stock, book.available_stock + 1)
+      };
+      setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+      updateBookInSupabase(book.id, { available_stock: updatedBook.available_stock }).catch(() => {});
     }
 
     if (settings.sound_enabled) {
@@ -1099,12 +1499,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const currentDue = new Date(loan.due_date);
     const newDue = new Date(Math.max(currentDue.getTime(), Date.now()) + extraDays * 24 * 60 * 60 * 1000);
 
-    setLoans(prev => prev.map(l => l.id === loanId ? {
-      ...l,
+    const updatedLoan: BookLoan = {
+      ...loan,
       due_date: newDue.toISOString(),
       status: 'borrowed',
-      notes: (l.notes ? l.notes + ' ' : '') + `(Diperpanjang +${extraDays} hari)`
-    } : l));
+      notes: (loan.notes ? loan.notes + ' ' : '') + `(Diperpanjang +${extraDays} hari)`
+    };
+
+    setLoans(prev => prev.map(l => l.id === loanId ? updatedLoan : l));
+    updateLoanInSupabase(loanId, {
+      due_date: newDue.toISOString(),
+      status: 'borrowed',
+      notes: updatedLoan.notes
+    }).catch(err => console.warn('Supabase update loan extend:', err));
 
     pushNotification('Peminjaman Diperpanjang', `Batas pengembalian diperpanjang sampai ${newDue.toLocaleDateString('id-ID')}.`, 'info');
     return true;
@@ -1197,17 +1604,62 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Authentication & User Management
   const login = useCallback(async (identity: string, pass: string): Promise<{ success: boolean; message: string; user?: AppUser }> => {
-    const trimmedIdentity = identity.trim().toLowerCase();
+    const trimmedIdentity = identity.trim();
     const trimmedPass = pass.trim();
 
-    // Match by username or email
+    // 1. Primary Authentication: Attempt Supabase Auth
+    if (isSupabaseConfigured) {
+      try {
+        const supaResult = await signInWithSupabase(trimmedIdentity, trimmedPass);
+        if (supaResult.success && supaResult.user) {
+          const supaUser = supaResult.user;
+
+          // Merge or update local users list for offline resilience
+          setUsers(prev => {
+            const exists = prev.some(u => u.email.toLowerCase() === supaUser.email.toLowerCase() || u.id === supaUser.id);
+            if (exists) {
+              return prev.map(u => (u.email.toLowerCase() === supaUser.email.toLowerCase() || u.id === supaUser.id) ? { ...u, ...supaUser } : u);
+            }
+            return [supaUser, ...prev];
+          });
+
+          setCurrentUser(supaUser);
+
+          try {
+            localStorage.setItem('perpustakaan_session_last_activity', Date.now().toString());
+            localStorage.removeItem('perpustakaan_session_test_offset');
+            localStorage.removeItem('perpustakaan_session_logout_reason');
+          } catch {
+            // ignore
+          }
+
+          pushNotification(
+            'Login Supabase Berhasil',
+            `Ahlan wa Sahlan, ${supaUser.name} (${supaUser.role === 'admin' ? 'Administrator' : 'Petugas Perpustakaan'}).`,
+            'success'
+          );
+
+          return { success: true, message: supaResult.message, user: supaUser };
+        }
+      } catch (err) {
+        console.warn('Supabase auth attempt error:', err);
+      }
+    }
+
+    // 2. Secondary Fallback: Match against local/demo stored users
+    const lowerIdentity = trimmedIdentity.toLowerCase();
     const user = users.find(u => 
-      (u.username && u.username.toLowerCase() === trimmedIdentity) || 
-      (u.email && u.email.toLowerCase() === trimmedIdentity)
+      (u.username && u.username.toLowerCase() === lowerIdentity) || 
+      (u.email && u.email.toLowerCase() === lowerIdentity)
     );
 
     if (!user) {
-      return { success: false, message: 'Username atau Email tidak terdaftar dalam sistem perpustakaan.' };
+      return { 
+        success: false, 
+        message: isSupabaseConfigured 
+          ? 'Email/Username atau Kata sandi tidak valid di Supabase maupun sistem lokal.' 
+          : 'Username atau Email tidak terdaftar dalam sistem perpustakaan.' 
+      };
     }
 
     if (user.status !== 'active') {
@@ -1226,6 +1678,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       last_login: new Date().toISOString()
     };
 
+    try {
+      localStorage.setItem('perpustakaan_session_last_activity', Date.now().toString());
+      localStorage.removeItem('perpustakaan_session_test_offset');
+      localStorage.removeItem('perpustakaan_session_logout_reason');
+    } catch {
+      // ignore
+    }
+
     setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     setCurrentUser(updatedUser);
 
@@ -1238,10 +1698,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return { success: true, message: 'Login berhasil! Mengalihkan ke sistem...', user: updatedUser };
   }, [users, pushNotification]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     const userName = currentUser?.name || 'Pengguna';
+    try {
+      if (isSupabaseConfigured) {
+        await signOutWithSupabase();
+      }
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem('perpustakaan_session_last_activity');
+      localStorage.removeItem('perpustakaan_session_test_offset');
+    } catch {
+      // ignore
+    }
     setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEYS.USER);
     pushNotification('Logout Berhasil', `${userName} telah keluar dari sesi perpustakaan.`, 'info');
   }, [currentUser, pushNotification]);
 
@@ -1270,12 +1739,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: false, message: `Email "${userData.email}" sudah terdaftar.` };
     }
 
+    const assignedEmail = cleanEmail || `${cleanUsername}@darululum.sch.id`;
+
+    // Optionally register user in Supabase in background
+    if (isSupabaseConfigured) {
+      signUpWithSupabase(assignedEmail, userData.password || 'santri123', {
+        name: cleanName,
+        username: cleanUsername,
+        role: userData.role || 'staff',
+        phone: userData.phone,
+      }).catch(err => console.warn('Supabase auto-create user background notice:', err));
+    }
+
     const newUser: AppUser = {
       ...userData,
       id: generateUniqueId('usr'),
       username: cleanUsername,
       name: cleanName,
-      email: cleanEmail || `${cleanUsername}@darululum.sch.id`,
+      email: assignedEmail,
       password: userData.password || 'santri123',
       role: userData.role || 'staff',
       avatar: userData.avatar || (
@@ -1290,8 +1771,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setUsers(prev => [newUser, ...prev]);
-    pushNotification('Akun Baru Dibuat', `Akun ${newUser.name} (${newUser.username}) berhasil ditambahkan.`, 'success');
-    return { success: true, message: 'Akun petugas baru berhasil dibuat.', user: newUser };
+    // Save to Supabase Cloud database in background
+    saveUserToSupabase(newUser, userData.password).catch(err => {
+      console.warn('Background Supabase user save warning:', err);
+    });
+    pushNotification('Akun Baru Dibuat', `Akun ${newUser.name} (${newUser.username}) berhasil ditambahkan dan disimpan ke database.`, 'success');
+    return { success: true, message: 'Akun petugas baru berhasil dibuat dan terhubung ke database.', user: newUser };
   }, [currentUser, users, pushNotification]);
 
   const updateUser = useCallback((id: string, updates: Partial<AppUser>): { success: boolean; message: string } => {
@@ -1331,8 +1816,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return u;
     }));
 
-    pushNotification('Akun Diperbarui', `Informasi akun ${updates.name || target.name} berhasil diperbarui.`, 'success');
-    return { success: true, message: 'Akun berhasil diperbarui.' };
+    // Update in Supabase Cloud database in background
+    updateUserInSupabase(target, updates).catch(err => {
+      console.warn('Background Supabase user update warning:', err);
+    });
+
+    pushNotification('Akun Diperbarui', `Informasi akun ${updates.name || target.name} berhasil diperbarui di database.`, 'success');
+    return { success: true, message: 'Akun berhasil diperbarui di database.' };
   }, [currentUser, users, pushNotification]);
 
   const deleteUser = useCallback((id: string): { success: boolean; message: string } => {
@@ -1354,8 +1844,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     setUsers(prev => prev.filter(u => u.id !== id));
-    pushNotification('Akun Dihapus', `Akun ${target.name} (${target.username}) telah dihapus dari sistem.`, 'info');
-    return { success: true, message: 'Akun berhasil dihapus.' };
+
+    // Delete in Supabase Cloud database in background
+    deleteUserFromSupabase(target).catch(err => {
+      console.warn('Background Supabase user delete warning:', err);
+    });
+
+    pushNotification('Akun Dihapus', `Akun ${target.name} (${target.username}) telah dihapus dari database sistem.`, 'info');
+    return { success: true, message: 'Akun berhasil dihapus dari database.' };
   }, [currentUser, users, pushNotification]);
 
   const toggleUserStatus = useCallback((id: string): { success: boolean; message: string } => {
@@ -1376,6 +1872,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const newStatus = target.status === 'active' ? 'inactive' : 'active';
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));
+
+    // Update status in Supabase Cloud database in background
+    updateUserInSupabase(target, { status: newStatus }).catch(err => {
+      console.warn('Background Supabase status update warning:', err);
+    });
+
     pushNotification('Status Akun Diubah', `Status ${target.name} diubah menjadi ${newStatus === 'active' ? 'Aktif' : 'Nonaktif'}.`, 'info');
     return { success: true, message: `Status berhasil diubah menjadi ${newStatus === 'active' ? 'Aktif' : 'Nonaktif'}.` };
   }, [currentUser, users, pushNotification]);
@@ -1429,6 +1931,101 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
     localStorage.removeItem(STORAGE_KEYS.WA_LOGS);
     pushNotification('Reset Selesai', 'Data sistem telah dikembalikan ke data default demo.', 'info');
+  }, [pushNotification]);
+
+  // Supabase Cloud Sync Operations
+  const [isSupabaseSyncing, setIsSupabaseSyncing] = useState(false);
+
+  const syncWithSupabase = useCallback(async (): Promise<{ success: boolean; message: string }> => {
+    if (!isSupabaseConfigured) {
+      return { success: false, message: 'Kredensial Supabase belum dikonfigurasi.' };
+    }
+
+    setIsSupabaseSyncing(true);
+    try {
+      const res = await syncAllToSupabase({
+        students,
+        cards,
+        books,
+        loans,
+        visits,
+        users,
+      });
+
+      if (res.success) {
+        pushNotification('Sinkronisasi Supabase Berhasil', 'Data santri, buku, dan kartu telah berhasil diperbarui ke Supabase.', 'success');
+      } else {
+        pushNotification('Sinkronisasi Supabase Terkendala', res.message, 'warning');
+      }
+
+      return res;
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      pushNotification('Gagal Sinkronisasi', msg, 'error');
+      return { success: false, message: msg };
+    } finally {
+      setIsSupabaseSyncing(false);
+    }
+  }, [students, cards, books, loans, visits, users, pushNotification]);
+
+  const pullFromSupabase = useCallback(async (): Promise<{ success: boolean; message: string }> => {
+    if (!isSupabaseConfigured) {
+      return { success: false, message: 'Kredensial Supabase belum dikonfigurasi.' };
+    }
+
+    setIsSupabaseSyncing(true);
+    try {
+      const res = await fetchAllFromSupabase();
+      if (!res.success) {
+        pushNotification('Gagal Mengambil Data Supabase', res.error || 'Terjadi kesalahan saat memuat data.', 'error');
+        return { success: false, message: res.error || 'Gagal memuat data' };
+      }
+
+      let updatedCount = 0;
+      if (res.students !== undefined) {
+        setStudents(res.students);
+        updatedCount += res.students.length;
+      }
+      if (res.books !== undefined) {
+        setBooks(res.books);
+        updatedCount += res.books.length;
+      }
+      if (res.cards !== undefined) {
+        setCards(res.cards);
+      }
+      if (res.visits !== undefined) {
+        setVisits(res.visits);
+      }
+      if (res.loans !== undefined) {
+        setLoans(res.loans);
+      }
+      if (res.users !== undefined && res.users.length > 0) {
+        setUsers(prev => {
+          const map = new Map<string, AppUser>();
+          prev.forEach(u => map.set(u.email.toLowerCase(), u));
+          res.users!.forEach(u => {
+            const existing = map.get(u.email.toLowerCase());
+            if (existing) {
+              map.set(u.email.toLowerCase(), { ...existing, ...u });
+            } else {
+              map.set(u.email.toLowerCase(), u);
+            }
+          });
+          return Array.from(map.values());
+        });
+        updatedCount += res.users.length;
+      }
+
+      const msg = `Berhasil memuat ${updatedCount} data (termasuk akun petugas) dari database cloud Supabase.`;
+      pushNotification('Tarik Data Supabase Berhasil', msg, 'success');
+      return { success: true, message: msg };
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      pushNotification('Gagal Menarik Data', msg, 'error');
+      return { success: false, message: msg };
+    } finally {
+      setIsSupabaseSyncing(false);
+    }
   }, [pushNotification]);
 
   // Derived Metrics
@@ -1544,6 +2141,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         clearNotifications,
         resetToDefaultData,
         supabaseSchema: supabaseSqlSchema,
+        isSupabaseSyncing,
+        isRealtimeConnected,
+        lastRealtimeSync,
+        syncWithSupabase,
+        pullFromSupabase,
       }}
     >
       {children}

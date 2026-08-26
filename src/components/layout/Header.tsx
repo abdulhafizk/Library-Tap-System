@@ -20,7 +20,10 @@ import {
   Users,
   Settings,
   ChevronDown,
-  User
+  User,
+  Database,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from './Sidebar';
@@ -48,7 +51,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
     whatsappLogs,
     isWhatsAppModalOpen,
     openWhatsAppModal,
-    closeWhatsAppModal
+    closeWhatsAppModal,
+    isRealtimeConnected,
+    isSupabaseSyncing,
+    lastRealtimeSync,
+    pullFromSupabase
   } = useLibrary();
 
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -124,6 +131,34 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
         {/* Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Realtime Database Sync Badge (Auto Refresh every 5s) */}
+          <button
+            id="btn-header-realtime-status"
+            onClick={() => pullFromSupabase()}
+            disabled={isSupabaseSyncing}
+            title={isRealtimeConnected 
+              ? `Realtime DB Aktif (Auto-refresh otomatis setiap 5 detik). ${lastRealtimeSync ? `Terakhir diperbarui: ${new Date(lastRealtimeSync).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} WIB.` : ''} Klik untuk sinkronisasi manual sekarang.` 
+              : "Menghubungkan ke Database Supabase Real-time. Klik untuk cek koneksi."
+            }
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+              isRealtimeConnected
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
+                : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+            }`}
+          >
+            {isSupabaseSyncing ? (
+              <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+            ) : isRealtimeConnected ? (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            ) : (
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+            )}
+            <span className="hidden xl:inline">{isSupabaseSyncing ? 'Sinkronisasi...' : isRealtimeConnected ? 'Realtime DB (5s)' : 'Cloud DB'}</span>
+          </button>
+
           {/* Live Clock Widget */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

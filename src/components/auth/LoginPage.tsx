@@ -15,9 +15,13 @@ import {
   KeyRound, 
   HelpCircle,
   Library,
-  GraduationCap
+  GraduationCap,
+  Cloud,
+  Mail,
+  UserPlus
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
+import { isSupabaseConfigured, sendSupabasePasswordReset, signUpWithSupabase } from '../../lib/supabase';
 
 interface LoginPageProps {
   onOpenKiosk?: () => void;
@@ -32,12 +36,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [sessionTimeoutNotice, setSessionTimeoutNotice] = useState<string | null>(() => {
+    try {
+      const reason = localStorage.getItem('perpustakaan_session_logout_reason');
+      if (reason) {
+        localStorage.removeItem('perpustakaan_session_logout_reason');
+        return reason;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Register modal states
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<'admin' | 'staff'>('staff');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [regResult, setRegResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identity.trim()) {
-      setErrorMessage('Silakan masukkan Username atau Email Anda.');
+      setErrorMessage('Silakan masukkan Username atau Email Supabase Anda.');
       return;
     }
     if (!password) {
@@ -46,11 +76,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
     }
 
     setErrorMessage(null);
+    setSuccessNotice(null);
     setIsLoading(true);
 
     try {
-      // Simulate minor network auth latency for smooth realistic UX
-      await new Promise(r => setTimeout(r, 450));
       const res = await login(identity, password);
       if (!res.success) {
         setErrorMessage(res.message);
@@ -66,6 +95,62 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
     setIdentity(demoUsername);
     setPassword(demoPass);
     setErrorMessage(null);
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim() || !resetEmail.includes('@')) {
+      setResetResult({ success: false, message: 'Masukkan alamat email yang valid.' });
+      return;
+    }
+
+    setIsResetting(true);
+    setResetResult(null);
+
+    try {
+      const res = await sendSupabasePasswordReset(resetEmail);
+      setResetResult(res);
+      if (res.success) {
+        setSuccessNotice('Tautan reset kata sandi telah dikirimkan ke email Anda.');
+      }
+    } catch (err: any) {
+      setResetResult({ success: false, message: err?.message || 'Gagal mengirim email reset.' });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || !regEmail.trim() || !regPassword) {
+      setRegResult({ success: false, message: 'Harap lengkapi semua kolom pendaftaran.' });
+      return;
+    }
+
+    setIsRegistering(true);
+    setRegResult(null);
+
+    try {
+      const res = await signUpWithSupabase(regEmail, regPassword, {
+        name: regName,
+        username: regEmail.split('@')[0],
+        role: regRole,
+      });
+
+      setRegResult(res);
+      if (res.success) {
+        setIdentity(regEmail);
+        setPassword(regPassword);
+        setSuccessNotice('Akun Supabase berhasil dibuat! Anda dapat langsung masuk.');
+        setTimeout(() => {
+          setShowRegisterModal(false);
+        }, 1200);
+      }
+    } catch (err: any) {
+      setRegResult({ success: false, message: err?.message || 'Gagal membuat akun Supabase.' });
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   return (
@@ -86,9 +171,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
           <div>
             <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
               {settings.library_name || 'Perpustakaan Baitul Hikmah'}
-              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                v2.5
-              </span>
+              {isSupabaseConfigured && (
+                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                  <Cloud className="w-3 h-3" />
+                  Supabase Auth
+                </span>
+              )}
             </h1>
             <p className="text-xs text-slate-400">
               {settings.institution_name || 'Pondok Pesantren Darul Ulum Modern'}
@@ -123,9 +211,35 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                 Masuk ke Sistem
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Silakan masuk dengan akun Administrator atau Petugas Perpustakaan yang telah terdaftar.
+                Gunakan akun email Supabase atau akun terdaftar untuk mengakses panel perpustakaan.
               </p>
             </div>
+
+            {sessionTimeoutNotice && (
+              <div className="mb-5 p-3.5 rounded-2xl bg-amber-950/70 border border-amber-500/50 text-amber-200 text-xs flex items-start justify-between gap-2.5 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block text-amber-300">Sesi Berakhir (Idle Timeout)</span>
+                    <span className="leading-relaxed text-amber-200/90">{sessionTimeoutNotice}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSessionTimeoutNotice(null)}
+                  className="text-amber-400 hover:text-amber-200 text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {successNotice && (
+              <div className="mb-5 p-3.5 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{successNotice}</span>
+              </div>
+            )}
 
             {errorMessage && (
               <div className="mb-5 p-3.5 rounded-2xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5 animate-shake">
@@ -137,7 +251,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Username atau Email
+                  Email atau Username Supabase
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -148,7 +262,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                     type="text"
                     value={identity}
                     onChange={(e) => setIdentity(e.target.value)}
-                    placeholder="Contoh: admin atau nama@darululum.sch.id"
+                    placeholder="Contoh: ustadz@darululum.sch.id atau admin"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/70 border border-slate-700/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-white placeholder-slate-500 text-sm outline-none transition-all"
                     autoComplete="username"
                     required
@@ -161,14 +275,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                   <label className="block text-xs font-medium text-slate-300">
                     Kata Sandi (Password)
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowHelpModal(true)}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1"
-                  >
-                    <HelpCircle className="w-3 h-3" />
-                    Bantuan Akun
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetResult(null);
+                        setResetEmail(identity.includes('@') ? identity : '');
+                        setShowResetModal(true);
+                      }}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1"
+                    >
+                      <Mail className="w-3 h-3" />
+                      Lupa Password?
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowHelpModal(true)}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1"
+                    >
+                      <HelpCircle className="w-3 h-3" />
+                      Bantuan
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -216,7 +344,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Memverifikasi Akun...</span>
+                    <span>Memverifikasi Akun Supabase...</span>
                   </>
                 ) : (
                   <>
@@ -225,11 +353,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                   </>
                 )}
               </button>
+
+              {isSupabaseConfigured && (
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegResult(null);
+                      setShowRegisterModal(true);
+                    }}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 font-medium inline-flex items-center gap-1.5 hover:underline"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Daftar Akun Petugas Baru via Supabase
+                  </button>
+                </div>
+              )}
             </form>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-slate-500">
-            Sistem Informasi Perpustakaan & Presensi Tap RFID • Pesantren
+          <div className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
+            <span>Sistem Informasi Perpustakaan & Presensi Tap RFID • Pesantren</span>
           </div>
         </div>
 
@@ -240,7 +384,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-amber-400" />
-                Akun Demo Cepat
+                Akun Cepat / Akses Instan
               </h3>
               <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 font-medium border border-amber-500/20">
                 1-Klik Isi
@@ -307,29 +451,216 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
             </div>
           </div>
 
-          {/* System Capability Highlight */}
+          {/* Supabase & Security Info */}
           <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-5">
             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300 mb-2">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              Fitur Multi-User & Keamanan
+              Supabase Cloud Authentication
             </div>
             <ul className="text-xs text-slate-400 space-y-1.5">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Administrator Bawaan</strong> dapat membuat akun baru untuk ustadz/ustadzah staf lainnya.</span>
+                <span>Terhubung ke Supabase Auth dengan enkripsi JWT aman & pemulihan kata sandi via email.</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Pemisahan wewenang hak akses (Admin vs Staff Operasional).</span>
+                <span>Pemisahan hak akses otomatis (Admin vs Petugas Perpustakaan).</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Proteksi akun utama & pelacakan waktu login terakhir.</span>
+                <span>Sesi persisten otomatis dengan perpanjangan token berkala.</span>
               </li>
             </ul>
           </div>
         </div>
       </div>
+
+      {/* Register Modal */}
+      {showRegisterModal && (
+        <div 
+          onClick={() => setShowRegisterModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-200 space-y-4 cursor-default"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold text-base">
+                <UserPlus className="w-5 h-5" />
+                Daftar Akun Supabase Baru
+              </div>
+              <button
+                onClick={() => setShowRegisterModal(false)}
+                className="text-slate-400 hover:text-white text-lg leading-none p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {regResult && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                regResult.success
+                  ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/40'
+                  : 'bg-rose-950/80 text-rose-200 border border-rose-500/40'
+              }`}>
+                {regResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                <span>{regResult.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRegister} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Nama Lengkap
+                </label>
+                <input
+                  type="text"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  placeholder="Contoh: Ustadz Ahmad Fauzi"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Alamat Email (Supabase Auth)
+                </label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="ahmad@darululum.sch.id"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Kata Sandi
+                </label>
+                <input
+                  type="password"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none focus:border-emerald-500"
+                  minLength={6}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Peran / Hak Akses
+                </label>
+                <select
+                  value={regRole}
+                  onChange={(e) => setRegRole(e.target.value as 'admin' | 'staff')}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none focus:border-emerald-500"
+                >
+                  <option value="staff">Petugas Perpustakaan (Staff Operasional)</option>
+                  <option value="admin">Administrator (Hak Akses Penuh)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRegistering}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold transition-all flex items-center gap-1.5"
+                >
+                  {isRegistering ? 'Memproses...' : 'Daftarkan Akun'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <div 
+          onClick={() => setShowResetModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-200 space-y-4 cursor-default"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2 text-blue-400 font-bold text-base">
+                <Mail className="w-5 h-5" />
+                Reset Kata Sandi via Email
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-slate-400 hover:text-white text-lg leading-none p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Masukkan alamat email akun Supabase Anda. Kami akan mengirimkan tautan pemulihan kata sandi.
+            </p>
+
+            {resetResult && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                resetResult.success
+                  ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-500/40'
+                  : 'bg-rose-950/80 text-rose-200 border border-rose-500/40'
+              }`}>
+                {resetResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                <span>{resetResult.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordReset} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Alamat Email
+                </label>
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="nama@darululum.sch.id"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold transition-all flex items-center gap-1.5"
+                >
+                  {isResetting ? 'Mengirim...' : 'Kirim Email Pemulihan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Help / Password Reset Modal */}
       {showHelpModal && (
@@ -356,7 +687,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
 
             <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
               <p>
-                Aplikasi ini dilengkapi dengan <strong>1 Akun Administrator Utama Bawaan</strong>:
+                Aplikasi ini mendukung autentikasi <strong>Cloud Supabase</strong> serta <strong>Akun Administrator Utama</strong>:
               </p>
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
                 <div>Username: <strong className="text-amber-300">admin</strong></div>
@@ -366,7 +697,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                 Jika Anda lupa kata sandi akun staf lainnya atau ingin menambahkan akun ustadz/ustadzah baru:
               </p>
               <ol className="list-decimal list-inside space-y-1 text-slate-400">
-                <li>Masuk menggunakan akun <strong>admin</strong>.</li>
+                <li>Masuk menggunakan akun <strong>admin</strong> atau akun Supabase Anda.</li>
                 <li>Buka menu <strong>"Kelola Pengguna"</strong> di navigasi samping.</li>
                 <li>Pilih <strong>"Ubah Password"</strong> atau buat akun baru sesuai kebutuhan.</li>
               </ol>
@@ -387,3 +718,4 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
     </div>
   );
 };
+

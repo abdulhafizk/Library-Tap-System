@@ -17,12 +17,22 @@ import { KioskDisplayPage } from './components/kiosk/KioskDisplayPage';
 import { UsersPage } from './components/users/UsersPage';
 import { UserProfileModal } from './components/users/UserProfileModal';
 import { LoginPage } from './components/auth/LoginPage';
+import { IdleSessionPrompt } from './components/auth/IdleSessionPrompt';
+import { useIdleSessionTimer } from './hooks/useIdleSessionTimer';
 
 function AppContent() {
   const { isAuthenticated, currentUser } = useLibrary();
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Idle session timer for automatic logout at 60 minutes with warning at 50 minutes
+  const {
+    isWarningOpen,
+    remainingSeconds,
+    extendSession,
+    logoutNow
+  } = useIdleSessionTimer();
 
   // If not logged in, show the Login Page
   if (!isAuthenticated || !currentUser) {
@@ -87,6 +97,14 @@ function AppContent() {
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+      />
+
+      {/* Idle Session Warning Prompt Modal (50 min warning / 60 min auto logout) */}
+      <IdleSessionPrompt
+        isOpen={isWarningOpen}
+        remainingSeconds={remainingSeconds}
+        onExtendSession={extendSession}
+        onLogout={logoutNow}
       />
     </div>
   );
