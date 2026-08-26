@@ -156,40 +156,9 @@ export async function fetchAllFromSupabase(): Promise<{
 
     const result: any = { success: true };
 
-    if (studentsRes.data !== null && !studentsRes.error) {
-      result.students = studentsRes.data.map((row: any) => ({
-        id: row.id,
-        nis: row.nis,
-        name: row.name,
-        class: row.class,
-        gender: row.gender,
-        photo_url: row.photo_url || '',
-        phone: row.phone || '',
-        status: row.status || 'active',
-        created_at: row.created_at,
-      }));
-    }
-
-    if (booksRes.data !== null && !booksRes.error) {
-      result.books = booksRes.data.map((row: any) => ({
-        id: row.id,
-        code: row.code,
-        title: row.title,
-        author: row.author,
-        publisher: row.publisher || '',
-        year: row.year || undefined,
-        category: row.category,
-        rack_location: row.rack_location,
-        total_stock: row.total_stock,
-        available_stock: row.available_stock,
-        cover_url: row.cover_url || '',
-        isbn: row.isbn || '',
-        created_at: row.created_at,
-      }));
-    }
-
+    let cardsList: RfidCard[] = [];
     if (cardsRes.data !== null && !cardsRes.error) {
-      result.cards = cardsRes.data.map((row: any) => ({
+      cardsList = cardsRes.data.map((row: any) => ({
         id: row.id,
         uid: row.uid,
         student_id: row.student_id,
@@ -198,6 +167,41 @@ export async function fetchAllFromSupabase(): Promise<{
         note: row.note || '',
       }));
     }
+
+    if (studentsRes.data !== null && !studentsRes.error) {
+      result.students = studentsRes.data.map((row: any) => {
+        const studentCard = cardsList.find(c => c.student_id === row.id);
+        return {
+          id: row.id,
+          nis: row.nis,
+          name: row.name,
+          class: row.class,
+          gender: row.gender,
+          photo_url: row.photo_url || '',
+          phone: row.phone || '',
+          status: row.status || 'active',
+          rfid_uid: studentCard ? studentCard.uid : undefined,
+          created_at: row.created_at,
+        };
+      });
+    }
+
+    // Ensure all student cards exist in cards list
+    if (result.students) {
+      result.students.forEach((s: Student) => {
+        if (s.rfid_uid && !cardsList.some(c => c.uid === s.rfid_uid)) {
+          cardsList.push({
+            id: `c-${s.id}`,
+            uid: s.rfid_uid,
+            student_id: s.id,
+            status: 'active',
+            registered_at: s.created_at || new Date().toISOString(),
+            note: `Kartu santri ${s.name} (${s.nis})`,
+          });
+        }
+      });
+    }
+    result.cards = cardsList;
 
     if (visitsRes.data !== null && !visitsRes.error) {
       result.visits = visitsRes.data.map((row: any) => ({
@@ -278,7 +282,23 @@ export async function insertStudentToSupabase(student: Student): Promise<{ succe
       console.warn('Supabase insert student error:', error.message);
       return { success: false };
     }
-    return { success: true, id: data?.id };
+    const studentDbId = data?.id || (payload.id ? payload.id : null);
+
+    // If student has an RFID UID, also ensure it's registered in rfid_cards table
+    if (student.rfid_uid) {
+      const cardPayload: any = {
+        uid: student.rfid_uid.trim().toUpperCase(),
+        status: 'active',
+        note: `Kartu santri ${student.name} (${student.nis})`,
+        registered_at: new Date().toISOString(),
+      };
+      if (studentDbId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentDbId)) {
+        cardPayload.student_id = studentDbId;
+      }
+      await supabase.from('rfid_cards').upsert(cardPayload, { onConflict: 'uid' });
+    }
+
+    return { success: true, id: studentDbId };
   } catch (e) {
     console.warn('Supabase insert student exception:', e);
     return { success: false };
@@ -305,6 +325,21 @@ export async function updateStudentInSupabase(id: string, updates: Partial<Stude
       query = query.eq('id', id);
     }
     const { error } = await query;
+
+    // If rfid_uid changed in updates
+    if (updates.rfid_uid) {
+      const cleanUid = updates.rfid_uid.trim().toUpperCase();
+      const cardPayload: any = {
+        uid: cleanUid,
+        status: 'active',
+        registered_at: new Date().toISOString()
+      };
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        cardPayload.student_id = id;
+      }
+      await supabase.from('rfid_cards').upsert(cardPayload, { onConflict: 'uid' });
+    }
+
     return !error;
   } catch (e) {
     console.warn('Supabase update student exception:', e);

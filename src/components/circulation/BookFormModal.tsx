@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookPlus, BookOpen, Layers, MapPin, Hash, User, Calendar, FileText } from 'lucide-react';
+import { X, BookPlus, BookOpen, Layers, MapPin, Hash, User, Calendar, FileText, Camera, Barcode, Check } from 'lucide-react';
 import { Book } from '../../types';
 import { useLibrary } from '../../context/LibraryContext';
+import { CameraScannerModal } from '../common/CameraScannerModal';
+import { soundManager } from '../../utils/audio';
 
 interface BookFormModalProps {
   isOpen: boolean;
@@ -44,6 +46,8 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [scannedFeedback, setScannedFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (editBook) {
@@ -77,7 +81,26 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
       });
     }
     setErrors({});
+    setScannedFeedback(null);
   }, [editBook, isOpen]);
+
+  const handleCameraScanCode = (scanned: string) => {
+    const clean = scanned.trim();
+    if (!clean) return;
+
+    soundManager.playSuccess();
+    setFormData(prev => {
+      const isIsbnLike = /^\d{9,13}[\dX]?$/i.test(clean.replace(/[-\s]/g, ''));
+      return {
+        ...prev,
+        code: clean.toUpperCase(),
+        isbn: isIsbnLike && !prev.isbn ? clean : prev.isbn
+      };
+    });
+
+    setScannedFeedback(`Kode "${clean}" berhasil discan dari kamera!`);
+    setTimeout(() => setScannedFeedback(null), 4000);
+  };
 
   if (!isOpen) return null;
 
@@ -134,21 +157,48 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs text-slate-800 dark:text-slate-200">
+          {scannedFeedback && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 rounded-xl text-emerald-800 dark:text-emerald-200 flex items-center gap-2 font-medium">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{scannedFeedback}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Code */}
             <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Kode Buku / Kitab <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative">
-                <Hash className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Contoh: KTB-001 / FIQ-104"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  Kode Buku / Kitab <span className="text-rose-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCameraScannerOpen(true)}
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold flex items-center gap-1 hover:underline"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  Scan Kamera
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Hash className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Contoh: KTB-001 / FIQ-104"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCameraScannerOpen(true)}
+                  className="px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors flex items-center gap-1 shrink-0"
+                  title="Buka Kamera untuk scan Barcode / QR buku"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
               </div>
               {errors.code && <p className="text-[11px] text-rose-500 mt-1">{errors.code}</p>}
             </div>
@@ -313,6 +363,16 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Camera Barcode / QR Scanner for Book Code */}
+      <CameraScannerModal
+        isOpen={isCameraScannerOpen}
+        onClose={() => setIsCameraScannerOpen(false)}
+        onScan={handleCameraScanCode}
+        title="Scan Barcode / QR Kode Kitab"
+        description="Arahkan kamera ke Barcode ISBN atau QR Code pada sampul buku"
+        placeholder="Ketik kode buku / ISBN manual..."
+      />
     </div>
   );
 };

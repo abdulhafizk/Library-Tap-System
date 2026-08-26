@@ -84,11 +84,24 @@ export const CardsPage: React.FC = () => {
     }
   };
 
-  const studentsMap = new Map<string, Student>(students.map(s => [s.id, s]));
+  const studentsMap = new Map<string, Student>();
+  students.forEach(s => {
+    studentsMap.set(s.id, s);
+    if (s.nis) studentsMap.set(s.nis, s);
+  });
+
+  // Helper to find student for a card
+  const getStudentForCard = (card: RfidCard): Student | null => {
+    if (card.student_id) {
+      const found = studentsMap.get(card.student_id) || students.find(s => s.id === card.student_id || s.nis === card.student_id);
+      if (found) return found;
+    }
+    return students.find(s => s.rfid_uid && s.rfid_uid.toUpperCase() === card.uid.toUpperCase()) || null;
+  };
 
   // Filter cards
   const filteredCards = cards.filter(card => {
-    const student = card.student_id ? studentsMap.get(card.student_id) : null;
+    const student = getStudentForCard(card);
     const matchesSearch = 
       card.uid.toLowerCase().includes(search.toLowerCase()) ||
       (card.note && card.note.toLowerCase().includes(search.toLowerCase())) ||
@@ -96,10 +109,11 @@ export const CardsPage: React.FC = () => {
       (student && student.nis.includes(search));
 
     const matchesStatus = selectedStatus === 'all' || card.status === selectedStatus;
+    const isAssigned = card.student_id !== null || student !== null;
     const matchesAssignment = 
       selectedAssignment === 'all' ||
-      (selectedAssignment === 'assigned' && card.student_id !== null) ||
-      (selectedAssignment === 'unassigned' && card.student_id === null);
+      (selectedAssignment === 'assigned' && isAssigned) ||
+      (selectedAssignment === 'unassigned' && !isAssigned);
 
     return matchesSearch && matchesStatus && matchesAssignment;
   });
@@ -124,8 +138,8 @@ export const CardsPage: React.FC = () => {
     }
   };
 
-  const totalAssigned = cards.filter(c => c.student_id !== null).length;
-  const totalUnassigned = cards.filter(c => c.student_id === null && c.status === 'active').length;
+  const totalAssigned = cards.filter(c => getStudentForCard(c) !== null).length;
+  const totalUnassigned = cards.filter(c => getStudentForCard(c) === null && c.status === 'active').length;
   const totalInactive = cards.filter(c => c.status === 'inactive').length;
 
   return (
@@ -242,7 +256,7 @@ export const CardsPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredCards.map((card, idx) => {
-                  const student = card.student_id ? studentsMap.get(card.student_id) : null;
+                  const student = getStudentForCard(card);
 
                   return (
                     <tr key={card.id || `card-${card.uid}-${idx}`} className="hover:bg-slate-50/70 transition-colors">

@@ -1085,14 +1085,46 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Student CRUD
   const addStudent = useCallback((data: Omit<Student, 'id' | 'created_at'>): Student => {
+    const stdId = generateUniqueId('std');
+    const rawUid = data.rfid_uid?.trim().toUpperCase();
+    const cardUid = rawUid || `RFID-${data.nis.trim().toUpperCase()}`;
+
     const newStudent: Student = {
       ...data,
-      id: generateUniqueId('std'),
+      id: stdId,
+      rfid_uid: cardUid,
       created_at: new Date().toISOString(),
     };
     setStudents(prev => [newStudent, ...prev]);
+
+    // Automatically register and link the RFID card in cards list
+    setCards(prev => {
+      const existing = prev.find(c => c.uid === cardUid);
+      if (existing) {
+        const updatedCard: RfidCard = { 
+          ...existing, 
+          student_id: stdId, 
+          status: 'active',
+          note: existing.note || `Kartu santri ${newStudent.name} (${newStudent.nis})`
+        };
+        updateCardInSupabase(updatedCard.id, { student_id: stdId, status: 'active', uid: cardUid }).catch(() => {});
+        return prev.map(c => c.uid === cardUid ? updatedCard : (c.student_id === stdId ? { ...c, student_id: null } : c));
+      } else {
+        const newCard: RfidCard = {
+          id: generateUniqueId('c'),
+          uid: cardUid,
+          student_id: stdId,
+          status: 'active',
+          registered_at: new Date().toISOString(),
+          note: `Kartu santri ${newStudent.name} (${newStudent.nis})`,
+        };
+        insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
+        return [newCard, ...prev];
+      }
+    });
+
     insertStudentToSupabase(newStudent).catch(err => console.warn('Supabase insert student:', err));
-    pushNotification('Santri Ditambahkan', `${newStudent.name} berhasil didaftarkan.`, 'success');
+    pushNotification('Santri & Kartu Terdaftar', `${newStudent.name} berhasil didaftarkan beserta kartu RFID (${cardUid}).`, 'success');
     return newStudent;
   }, [pushNotification]);
 
@@ -1106,8 +1138,44 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return s;
     }));
+
     if (updatedStudent) {
+      const studentObj = updatedStudent as Student;
       updateStudentInSupabase(id, updates).catch(err => console.warn('Supabase update student:', err));
+
+      if (updates.rfid_uid !== undefined) {
+        const newUid = updates.rfid_uid?.trim().toUpperCase();
+        if (newUid) {
+          setCards(prev => {
+            const existing = prev.find(c => c.uid === newUid);
+            if (existing) {
+              const updatedCard: RfidCard = { ...existing, student_id: id, status: 'active' };
+              updateCardInSupabase(updatedCard.id, { student_id: id, status: 'active', uid: newUid }).catch(() => {});
+              return prev.map(c => c.uid === newUid ? updatedCard : (c.student_id === id && c.uid !== newUid ? { ...c, student_id: null } : c));
+            } else {
+              const newCard: RfidCard = {
+                id: generateUniqueId('c'),
+                uid: newUid,
+                student_id: id,
+                status: 'active',
+                registered_at: new Date().toISOString(),
+                note: `Kartu santri ${studentObj.name} (${studentObj.nis})`,
+              };
+              insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
+              return [newCard, ...prev.map(c => c.student_id === id ? { ...c, student_id: null } : c)];
+            }
+          });
+        } else if (updates.rfid_uid === '' || updates.rfid_uid === null) {
+          setCards(prev => prev.map(c => {
+            if (c.student_id === id) {
+              const unlinked = { ...c, student_id: null };
+              updateCardInSupabase(c.id, { student_id: null }).catch(() => {});
+              return unlinked;
+            }
+            return c;
+          }));
+        }
+      }
     }
     pushNotification('Santri Diperbarui', 'Data santri berhasil disimpan.', 'info');
   }, [pushNotification]);

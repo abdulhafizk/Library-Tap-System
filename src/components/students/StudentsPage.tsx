@@ -482,17 +482,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">UID Kartu RFID (Opsional)</label>
+                <label className="block font-semibold text-slate-700 mb-1">UID Kartu RFID / Nomor Kartu</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={formData.rfid_uid}
                     onChange={(e) => setFormData({ ...formData, rfid_uid: e.target.value.toUpperCase() })}
-                    placeholder="Tempelkan pada scanner atau ketik UID..."
+                    placeholder={`Tempelkan pada scanner atau ketik UID (Otomatis: RFID-${formData.nis || 'NIS'})...`}
                     className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-800 focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">Bisa dihubungkan sekarang atau nanti.</p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  ✨ Kartu RFID akan <strong>langsung terdaftar otomatis</strong> di menu Data Kartu RFID saat santri disimpan.
+                </p>
               </div>
 
               {/* Upload Foto Santri */}

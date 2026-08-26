@@ -192,6 +192,19 @@ class SoundManager {
       // Graceful
     }
   }
+
+  // Convenient aliases
+  playSuccess() {
+    this.playCheckInSound();
+  }
+
+  playError() {
+    this.playErrorSound();
+  }
+
+  playBlip() {
+    this.playScanBlip();
+  }
 }
 
 export const soundManager = new SoundManager();
