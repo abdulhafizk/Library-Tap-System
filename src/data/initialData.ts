@@ -802,11 +802,32 @@ ALTER TABLE library_visits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE books ENABLE ROW LEVEL SECURITY;
 ALTER TABLE book_loans ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow authenticated read for users" ON users FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated write for users" ON users FOR ALL USING (true);
-CREATE POLICY "Allow authenticated read for all" ON students FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read for cards" ON rfid_cards FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read for visits" ON library_visits FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read for books" ON books FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read for book_loans" ON book_loans FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow full access for users" ON users;
+CREATE POLICY "Allow full access for users" ON users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for students" ON students;
+CREATE POLICY "Allow full access for students" ON students FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for rfid_cards" ON rfid_cards;
+CREATE POLICY "Allow full access for rfid_cards" ON rfid_cards FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for library_visits" ON library_visits;
+CREATE POLICY "Allow full access for library_visits" ON library_visits FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for books" ON books;
+CREATE POLICY "Allow full access for books" ON books FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for book_loans" ON book_loans;
+CREATE POLICY "Allow full access for book_loans" ON book_loans FOR ALL USING (true) WITH CHECK (true);
+
+-- 10. Enable Supabase Realtime (Instant Live Updates across all devices without page refresh)
+ALTER PUBLICATION supabase_realtime ADD TABLE users, students, rfid_cards, library_visits, books, book_loans;
+
+-- Full Replica Identity ensures updated/deleted rows contain complete records in realtime payloads
+ALTER TABLE users REPLICA IDENTITY FULL;
+ALTER TABLE students REPLICA IDENTITY FULL;
+ALTER TABLE rfid_cards REPLICA IDENTITY FULL;
+ALTER TABLE library_visits REPLICA IDENTITY FULL;
+ALTER TABLE books REPLICA IDENTITY FULL;
+ALTER TABLE book_loans REPLICA IDENTITY FULL;
 `;

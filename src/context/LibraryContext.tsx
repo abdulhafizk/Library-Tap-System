@@ -53,7 +53,8 @@ import {
   insertLoanToSupabase,
   updateLoanInSupabase,
   deleteLoanFromSupabase,
-  subscribeToAllDatabaseChanges
+  subscribeToAllDatabaseChanges,
+  broadcastRealtimeAction
 } from '../lib/supabaseSync';
 import { 
   isSupabaseConfigured,
@@ -449,9 +450,44 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     });
 
-    // 4. Listen to real-time Postgres changes across public tables (INSERT, UPDATE, DELETE)
+    // Helper for silent background delta fetch
+    const fetchLatestCloudDelta = async () => {
+      if (isSilentFetchingRef.current || !isSupabaseConfigured) return;
+      isSilentFetchingRef.current = true;
+      try {
+        const res = await fetchAllFromSupabase();
+        if (res.success) {
+          if (res.students !== undefined) setStudents(res.students);
+          if (res.books !== undefined) setBooks(res.books);
+          if (res.cards !== undefined) setCards(res.cards);
+          if (res.visits !== undefined) setVisits(res.visits);
+          if (res.loans !== undefined) setLoans(res.loans);
+          if (res.users !== undefined && res.users.length > 0) {
+            setUsers(prev => {
+              const map = new Map<string, AppUser>();
+              prev.forEach(u => map.set(u.email.toLowerCase(), u));
+              res.users!.forEach(u => {
+                const existing = map.get(u.email.toLowerCase());
+                map.set(u.email.toLowerCase(), existing ? { ...existing, ...u } : u);
+              });
+              return Array.from(map.values());
+            });
+          }
+          setLastRealtimeSync(new Date().toISOString());
+          setIsRealtimeConnected(true);
+        }
+      } catch (err) {
+        console.debug('Background database resync notice:', err);
+      } finally {
+        isSilentFetchingRef.current = false;
+      }
+    };
+
+    // 4. Listen to real-time events (Instant WebSockets + Cross-tab + Postgres CDC)
     const { unsubscribe: unsubRealtime } = subscribeToAllDatabaseChanges({
       onStudentChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           const delNis = oldRow?.nis;
@@ -467,7 +503,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             photo_url: newRow.photo_url || '',
             phone: newRow.phone || '',
             status: newRow.status || 'active',
-            created_at: newRow.created_at,
+            rfid_uid: newRow.rfid_uid || undefined,
+            created_at: newRow.created_at || new Date().toISOString(),
           };
           setStudents(prev => {
             const exists = prev.some(s => s.id === item.id || s.nis === item.nis);
@@ -479,6 +516,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       },
       onBookChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           const delCode = oldRow?.code;
@@ -493,11 +532,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             year: newRow.year || undefined,
             category: newRow.category,
             rack_location: newRow.rack_location,
-            total_stock: newRow.total_stock,
-            available_stock: newRow.available_stock,
+            total_stock: Number(newRow.total_stock) || 1,
+            available_stock: Number(newRow.available_stock) ?? 1,
             cover_url: newRow.cover_url || '',
             isbn: newRow.isbn || '',
-            created_at: newRow.created_at,
+            created_at: newRow.created_at || new Date().toISOString(),
           };
           setBooks(prev => {
             const exists = prev.some(b => b.id === item.id || b.code === item.code);
@@ -509,6 +548,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       },
       onCardChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           const delUid = oldRow?.uid;
@@ -532,6 +573,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       },
       onVisitChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           setVisits(prev => prev.filter(v => v.id !== delId));
@@ -543,9 +586,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             rfid_uid: newRow.rfid_uid,
             check_in: newRow.check_in,
             check_out: newRow.check_out,
-            duration_minutes: newRow.duration_minutes,
+            duration_minutes: newRow.duration_minutes !== undefined ? Number(newRow.duration_minutes) : null,
             status: newRow.status,
-            created_at: newRow.created_at,
+            created_at: newRow.created_at || new Date().toISOString(),
             notes: newRow.notes || '',
           };
           setVisits(prev => {
@@ -558,6 +601,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       },
       onLoanChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           const delCode = oldRow?.loan_code;
@@ -574,7 +619,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             status: newRow.status,
             fine_amount: Number(newRow.fine_amount) || 0,
             notes: newRow.notes || '',
-            created_at: newRow.created_at,
+            created_at: newRow.created_at || new Date().toISOString(),
           };
           setLoans(prev => {
             const exists = prev.some(l => l.id === item.id || l.loan_code === item.loan_code);
@@ -586,6 +631,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       },
       onUserChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
         if (event === 'DELETE') {
           const delId = oldRow?.id;
           const delEmail = oldRow?.email?.toLowerCase();
@@ -615,65 +662,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       onStatusChange: (status) => {
         setIsRealtimeConnected(status === 'CONNECTED');
       },
+      onForceSync: () => {
+        fetchLatestCloudDelta();
+      },
     });
 
     return () => {
       unsubAuth();
       unsubRealtime();
-    };
-  }, []);
-
-  // 5-Second Automatic Realtime Background Polling Sync
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-
-    const silentPollDatabase = async () => {
-      if (isSilentFetchingRef.current) return;
-      isSilentFetchingRef.current = true;
-      try {
-        const res = await fetchAllFromSupabase();
-        if (res.success) {
-          if (res.students !== undefined) {
-            setStudents(res.students);
-          }
-          if (res.books !== undefined) {
-            setBooks(res.books);
-          }
-          if (res.cards !== undefined) {
-            setCards(res.cards);
-          }
-          if (res.visits !== undefined) {
-            setVisits(res.visits);
-          }
-          if (res.loans !== undefined) {
-            setLoans(res.loans);
-          }
-          if (res.users !== undefined && res.users.length > 0) {
-            setUsers(prev => {
-              const map = new Map<string, AppUser>();
-              prev.forEach(u => map.set(u.email.toLowerCase(), u));
-              res.users!.forEach(u => {
-                const existing = map.get(u.email.toLowerCase());
-                map.set(u.email.toLowerCase(), existing ? { ...existing, ...u } : u);
-              });
-              return Array.from(map.values());
-            });
-          }
-          setLastRealtimeSync(new Date().toISOString());
-          setIsRealtimeConnected(true);
-        }
-      } catch (err) {
-        console.debug('5s database background refresh:', err);
-      } finally {
-        isSilentFetchingRef.current = false;
-      }
-    };
-
-    // Run every 5000 milliseconds (5 seconds)
-    const intervalId = setInterval(silentPollDatabase, 5000);
-
-    return () => {
-      clearInterval(intervalId);
     };
   }, []);
 
@@ -918,6 +914,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return next;
       });
 
+      // Broadcast instant Realtime event to all connected devices (<50ms)
+      broadcastRealtimeAction({
+        type: 'VISIT_CHANGE',
+        action: 'UPDATE',
+        payload: updatedVisit,
+      });
+
       // Background Supabase Visit Sync
       recordVisitToSupabase(updatedVisit);
 
@@ -994,6 +997,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
 
       setVisits(prev => [newVisit, ...prev]);
+      // Broadcast instant Realtime event to all connected devices (<50ms)
+      broadcastRealtimeAction({
+        type: 'VISIT_CHANGE',
+        action: 'INSERT',
+        payload: newVisit,
+      });
       recordVisitToSupabase(newVisit);
 
       if (settings.sound_enabled) {
@@ -1078,6 +1087,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
 
     if (updatedVisit) {
+      // Broadcast instant Realtime event to all connected devices (<50ms)
+      broadcastRealtimeAction({
+        type: 'VISIT_CHANGE',
+        action: 'UPDATE',
+        payload: updatedVisit,
+      });
       updateVisitInSupabase(updatedVisit.id, updatedVisit).catch(() => {});
     }
     pushNotification('Check-out Manual', 'Santri berhasil di-checkout manual oleh petugas.', 'info');
@@ -1097,6 +1112,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setStudents(prev => [newStudent, ...prev]);
 
+    // Broadcast instant student insert to other devices
+    broadcastRealtimeAction({
+      type: 'STUDENT_CHANGE',
+      action: 'INSERT',
+      payload: newStudent,
+    });
+
     // Automatically register and link the RFID card in cards list
     setCards(prev => {
       const existing = prev.find(c => c.uid === cardUid);
@@ -1107,6 +1129,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           status: 'active',
           note: existing.note || `Kartu santri ${newStudent.name} (${newStudent.nis})`
         };
+        broadcastRealtimeAction({
+          type: 'CARD_CHANGE',
+          action: 'UPDATE',
+          payload: updatedCard,
+        });
         updateCardInSupabase(updatedCard.id, { student_id: stdId, status: 'active', uid: cardUid }).catch(() => {});
         return prev.map(c => c.uid === cardUid ? updatedCard : (c.student_id === stdId ? { ...c, student_id: null } : c));
       } else {
@@ -1118,6 +1145,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           registered_at: new Date().toISOString(),
           note: `Kartu santri ${newStudent.name} (${newStudent.nis})`,
         };
+        broadcastRealtimeAction({
+          type: 'CARD_CHANGE',
+          action: 'INSERT',
+          payload: newCard,
+        });
         insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
         return [newCard, ...prev];
       }
@@ -1141,6 +1173,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (updatedStudent) {
       const studentObj = updatedStudent as Student;
+      broadcastRealtimeAction({
+        type: 'STUDENT_CHANGE',
+        action: 'UPDATE',
+        payload: studentObj,
+      });
       updateStudentInSupabase(id, updates).catch(err => console.warn('Supabase update student:', err));
 
       if (updates.rfid_uid !== undefined) {
@@ -1150,6 +1187,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const existing = prev.find(c => c.uid === newUid);
             if (existing) {
               const updatedCard: RfidCard = { ...existing, student_id: id, status: 'active' };
+              broadcastRealtimeAction({
+                type: 'CARD_CHANGE',
+                action: 'UPDATE',
+                payload: updatedCard,
+              });
               updateCardInSupabase(updatedCard.id, { student_id: id, status: 'active', uid: newUid }).catch(() => {});
               return prev.map(c => c.uid === newUid ? updatedCard : (c.student_id === id && c.uid !== newUid ? { ...c, student_id: null } : c));
             } else {
@@ -1161,6 +1203,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 registered_at: new Date().toISOString(),
                 note: `Kartu santri ${studentObj.name} (${studentObj.nis})`,
               };
+              broadcastRealtimeAction({
+                type: 'CARD_CHANGE',
+                action: 'INSERT',
+                payload: newCard,
+              });
               insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
               return [newCard, ...prev.map(c => c.student_id === id ? { ...c, student_id: null } : c)];
             }
@@ -1169,6 +1216,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setCards(prev => prev.map(c => {
             if (c.student_id === id) {
               const unlinked = { ...c, student_id: null };
+              broadcastRealtimeAction({
+                type: 'CARD_CHANGE',
+                action: 'UPDATE',
+                payload: unlinked,
+              });
               updateCardInSupabase(c.id, { student_id: null }).catch(() => {});
               return unlinked;
             }
@@ -1184,6 +1236,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const toDelete = students.find(s => s.id === id);
     setStudents(prev => prev.filter(s => s.id !== id));
     setCards(prev => prev.map(c => c.student_id === id ? { ...c, student_id: null } : c));
+    broadcastRealtimeAction({
+      type: 'STUDENT_CHANGE',
+      action: 'DELETE',
+      payload: null,
+      oldPayload: { id, nis: toDelete?.nis },
+    });
     deleteStudentFromSupabase({ id, nis: toDelete?.nis }).catch(err => console.warn('Supabase delete student:', err));
     pushNotification('Santri Dihapus', 'Data santri berhasil dihapus.', 'info');
   }, [students, pushNotification]);
@@ -1199,7 +1257,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
-        return { ...s, rfid_uid: cleanUid };
+        const mod = { ...s, rfid_uid: cleanUid };
+        broadcastRealtimeAction({
+          type: 'STUDENT_CHANGE',
+          action: 'UPDATE',
+          payload: mod,
+        });
+        return mod;
       }
       if (s.rfid_uid === cleanUid) {
         return { ...s, rfid_uid: undefined };
@@ -1218,6 +1282,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
         return c;
       }));
+      broadcastRealtimeAction({
+        type: 'CARD_CHANGE',
+        action: 'UPDATE',
+        payload: updatedCard,
+      });
       updateCardInSupabase(updatedCard.id, { student_id: studentId, status: 'active' }).catch(() => {});
     } else {
       const newCard: RfidCard = {
@@ -1229,6 +1298,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         note: 'Didaftarkan dari profil santri'
       };
       setCards(prev => [newCard, ...prev]);
+      broadcastRealtimeAction({
+        type: 'CARD_CHANGE',
+        action: 'INSERT',
+        payload: newCard,
+      });
       insertCardToSupabase(newCard).catch(() => {});
     }
 
@@ -1237,10 +1311,26 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [cards, pushNotification]);
 
   const unlinkCardFromStudent = useCallback((studentId: string) => {
-    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, rfid_uid: undefined } : s));
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        const mod = { ...s, rfid_uid: undefined };
+        broadcastRealtimeAction({
+          type: 'STUDENT_CHANGE',
+          action: 'UPDATE',
+          payload: mod,
+        });
+        return mod;
+      }
+      return s;
+    }));
     setCards(prev => prev.map(c => {
       if (c.student_id === studentId) {
         const unlinked: RfidCard = { ...c, student_id: null };
+        broadcastRealtimeAction({
+          type: 'CARD_CHANGE',
+          action: 'UPDATE',
+          payload: unlinked,
+        });
         updateCardInSupabase(c.id, { student_id: null }).catch(() => {});
         return unlinked;
       }
@@ -1268,6 +1358,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setCards(prev => [newCard, ...prev]);
+    broadcastRealtimeAction({
+      type: 'CARD_CHANGE',
+      action: 'INSERT',
+      payload: newCard,
+    });
     insertCardToSupabase(newCard).catch(err => console.warn('Supabase insert card:', err));
     pushNotification('Kartu RFID Terdaftar', `Kartu ${cleanUid} siap digunakan.`, 'success');
     return newCard;
@@ -1286,7 +1381,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
     });
     setCards(prev => [...newCards, ...prev]);
-    newCards.forEach(c => insertCardToSupabase(c).catch(() => {}));
+    newCards.forEach(c => {
+      broadcastRealtimeAction({
+        type: 'CARD_CHANGE',
+        action: 'INSERT',
+        payload: c,
+      });
+      insertCardToSupabase(c).catch(() => {});
+    });
     pushNotification('Batch Kartu Terdaftar', `${newCards.length} kartu baru berhasil didaftarkan.`, 'success');
     return newCards;
   }, [pushNotification]);
@@ -1302,6 +1404,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return c;
     }));
     if (updatedCard) {
+      broadcastRealtimeAction({
+        type: 'CARD_CHANGE',
+        action: 'UPDATE',
+        payload: updatedCard,
+      });
       updateCardInSupabase(id, { status }).catch(() => {});
     }
     pushNotification('Status Kartu', `Status kartu diubah menjadi ${status.toUpperCase()}.`, 'info');
@@ -1313,6 +1420,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStudents(prev => prev.map(s => s.id === card.student_id ? { ...s, rfid_uid: undefined } : s));
     }
     setCards(prev => prev.filter(c => c.id !== id));
+    broadcastRealtimeAction({
+      type: 'CARD_CHANGE',
+      action: 'DELETE',
+      payload: null,
+      oldPayload: { id, uid: card?.uid },
+    });
     deleteCardFromSupabase({ id, uid: card?.uid }).catch(err => console.warn('Supabase delete card:', err));
     pushNotification('Kartu Dihapus', 'Kartu RFID berhasil dihapus dari database.', 'info');
   }, [cards, pushNotification]);
@@ -1325,6 +1438,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       created_at: new Date().toISOString(),
     };
     setBooks(prev => [newBook, ...prev]);
+    broadcastRealtimeAction({
+      type: 'BOOK_CHANGE',
+      action: 'INSERT',
+      payload: newBook,
+    });
     insertBookToSupabase(newBook).catch(err => console.warn('Supabase insert book:', err));
     pushNotification('Buku Ditambahkan', `"${newBook.title}" berhasil ditambahkan ke katalog.`, 'success');
     return newBook;
@@ -1341,6 +1459,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return b;
     }));
     if (updatedBook) {
+      broadcastRealtimeAction({
+        type: 'BOOK_CHANGE',
+        action: 'UPDATE',
+        payload: updatedBook,
+      });
       updateBookInSupabase(id, updates).catch(err => console.warn('Supabase update book:', err));
     }
     pushNotification('Buku Diperbarui', 'Data buku berhasil disimpan.', 'info');
@@ -1355,6 +1478,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     const toDelete = books.find(b => b.id === id);
     setBooks(prev => prev.filter(b => b.id !== id));
+    broadcastRealtimeAction({
+      type: 'BOOK_CHANGE',
+      action: 'DELETE',
+      payload: null,
+      oldPayload: { id, code: toDelete?.code },
+    });
     deleteBookFromSupabase({ id, code: toDelete?.code }).catch(err => console.warn('Supabase delete book:', err));
     pushNotification('Buku Dihapus', 'Buku berhasil dihapus dari katalog.', 'info');
   }, [books, loans, pushNotification]);
@@ -1412,6 +1541,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setLoans(prev => [newLoan, ...prev]);
     const updatedBook = { ...book, available_stock: Math.max(0, book.available_stock - 1) };
     setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+
+    // Broadcast instant loan and book updates to all devices
+    broadcastRealtimeAction({
+      type: 'LOAN_CHANGE',
+      action: 'INSERT',
+      payload: newLoan,
+    });
+    broadcastRealtimeAction({
+      type: 'BOOK_CHANGE',
+      action: 'UPDATE',
+      payload: updatedBook,
+    });
 
     // Save to Supabase
     insertLoanToSupabase(newLoan).catch(err => console.warn('Supabase insert loan:', err));
@@ -1499,6 +1640,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Update loan
     setLoans(prev => prev.map(l => l.id === loanId ? updatedLoan : l));
+    broadcastRealtimeAction({
+      type: 'LOAN_CHANGE',
+      action: 'UPDATE',
+      payload: updatedLoan,
+    });
     updateLoanInSupabase(loanId, {
       return_date: nowIso,
       status: 'returned',
@@ -1513,6 +1659,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         available_stock: Math.min(book.total_stock, book.available_stock + 1)
       };
       setBooks(prev => prev.map(b => b.id === book.id ? updatedBook : b));
+      broadcastRealtimeAction({
+        type: 'BOOK_CHANGE',
+        action: 'UPDATE',
+        payload: updatedBook,
+      });
       updateBookInSupabase(book.id, { available_stock: updatedBook.available_stock }).catch(() => {});
     }
 
@@ -1575,6 +1726,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setLoans(prev => prev.map(l => l.id === loanId ? updatedLoan : l));
+    broadcastRealtimeAction({
+      type: 'LOAN_CHANGE',
+      action: 'UPDATE',
+      payload: updatedLoan,
+    });
     updateLoanInSupabase(loanId, {
       due_date: newDue.toISOString(),
       status: 'borrowed',
@@ -1839,6 +1995,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setUsers(prev => [newUser, ...prev]);
+    broadcastRealtimeAction({
+      type: 'USER_CHANGE',
+      action: 'INSERT',
+      payload: newUser,
+    });
     // Save to Supabase Cloud database in background
     saveUserToSupabase(newUser, userData.password).catch(err => {
       console.warn('Background Supabase user save warning:', err);
@@ -1873,9 +2034,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: false, message: 'Akun Administrator Utama Bawaan tidak dapat dinonaktifkan.' };
     }
 
+    let updatedUserObj: AppUser | null = null;
     setUsers(prev => prev.map(u => {
       if (u.id === id) {
         const updated = { ...u, ...updates };
+        updatedUserObj = updated;
         if (currentUser?.id === id) {
           setCurrentUser(updated);
         }
@@ -1883,6 +2046,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return u;
     }));
+
+    if (updatedUserObj) {
+      broadcastRealtimeAction({
+        type: 'USER_CHANGE',
+        action: 'UPDATE',
+        payload: updatedUserObj,
+      });
+    }
 
     // Update in Supabase Cloud database in background
     updateUserInSupabase(target, updates).catch(err => {
@@ -1912,6 +2083,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     setUsers(prev => prev.filter(u => u.id !== id));
+    broadcastRealtimeAction({
+      type: 'USER_CHANGE',
+      action: 'DELETE',
+      payload: null,
+      oldPayload: { id, email: target.email, username: target.username },
+    });
 
     // Delete in Supabase Cloud database in background
     deleteUserFromSupabase(target).catch(err => {
@@ -1939,7 +2116,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const newStatus = target.status === 'active' ? 'inactive' : 'active';
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u));
+    const updatedUser = { ...target, status: newStatus as 'active' | 'inactive' };
+    setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
+
+    broadcastRealtimeAction({
+      type: 'USER_CHANGE',
+      action: 'UPDATE',
+      payload: updatedUser,
+    });
 
     // Update status in Supabase Cloud database in background
     updateUserInSupabase(target, { status: newStatus }).catch(err => {

@@ -770,10 +770,79 @@ export async function deleteUserFromSupabase(user: AppUser): Promise<{ success: 
 
 /**
  * ============================================================================
- * SUPABASE REALTIME SUBSCRIPTION SYSTEM
+ * SUPABASE REALTIME SUBSCRIPTION & INSTANT BROADCAST SYSTEM
  * ============================================================================
- * Listens to all Postgres changes (INSERT, UPDATE, DELETE) across public tables
+ * Enables instant, zero-delay real-time synchronization like WhatsApp / Telegram.
+ * Combines:
+ * 1. Supabase Realtime Broadcast (WebSockets < 50ms across all devices)
+ * 2. Supabase Postgres CDC (postgres_changes across public tables)
+ * 3. Browser BroadcastChannel API (0ms across tabs in same browser)
  */
+
+export const CLIENT_INSTANCE_ID = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID()
+  : 'client_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+
+export type RealtimeBroadcastType =
+  | 'STUDENT_CHANGE'
+  | 'BOOK_CHANGE'
+  | 'CARD_CHANGE'
+  | 'VISIT_CHANGE'
+  | 'LOAN_CHANGE'
+  | 'USER_CHANGE'
+  | 'FORCE_SYNC';
+
+export interface RealtimeBroadcastPayload {
+  type: RealtimeBroadcastType;
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'REFRESH';
+  payload: any;
+  oldPayload?: any;
+  senderId?: string;
+  timestamp?: number;
+}
+
+let localBroadcastChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    localBroadcastChannel = new BroadcastChannel('library_tap_realtime_bus');
+  }
+} catch {
+  // Graceful fallback if unsupported
+}
+
+let activeRealtimeChannel: any = null;
+
+/**
+ * Broadcasts an event to all other connected devices & tabs instantly
+ */
+export function broadcastRealtimeAction(data: RealtimeBroadcastPayload) {
+  const message: RealtimeBroadcastPayload = {
+    ...data,
+    senderId: data.senderId || CLIENT_INSTANCE_ID,
+    timestamp: data.timestamp || Date.now(),
+  };
+
+  // 1. Cross-tab instant propagation (0ms)
+  try {
+    localBroadcastChannel?.postMessage(message);
+  } catch (err) {
+    console.debug('Cross-tab broadcast notice:', err);
+  }
+
+  // 2. Supabase Realtime WebSocket broadcast (<50ms across devices)
+  if (isSupabaseConfigured && activeRealtimeChannel) {
+    try {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'realtime_event',
+        payload: message,
+      }).catch((err: any) => console.debug('Supabase broadcast send notice:', err));
+    } catch (err) {
+      console.debug('Supabase realtime channel send notice:', err);
+    }
+  }
+}
+
 export interface RealtimeHandlers {
   onStudentChange: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onBookChange: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
@@ -782,15 +851,72 @@ export interface RealtimeHandlers {
   onLoanChange: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onUserChange: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onStatusChange?: (status: 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR') => void;
+  onForceSync?: () => void;
 }
 
 export function subscribeToAllDatabaseChanges(handlers: RealtimeHandlers): { unsubscribe: () => void } {
-  if (!isSupabaseConfigured) {
-    return { unsubscribe: () => {} };
+  // Handle cross-tab local broadcast messages
+  const handleIncomingBroadcast = (data: RealtimeBroadcastPayload) => {
+    if (!data || data.senderId === CLIENT_INSTANCE_ID) return;
+
+    switch (data.type) {
+      case 'STUDENT_CHANGE':
+        handlers.onStudentChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'BOOK_CHANGE':
+        handlers.onBookChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'CARD_CHANGE':
+        handlers.onCardChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'VISIT_CHANGE':
+        handlers.onVisitChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'LOAN_CHANGE':
+        handlers.onLoanChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'USER_CHANGE':
+        handlers.onUserChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'FORCE_SYNC':
+        if (handlers.onForceSync) handlers.onForceSync();
+        break;
+    }
+  };
+
+  if (localBroadcastChannel) {
+    localBroadcastChannel.onmessage = (event) => {
+      handleIncomingBroadcast(event.data);
+    };
   }
 
+  if (!isSupabaseConfigured) {
+    if (handlers.onStatusChange) handlers.onStatusChange('CONNECTED');
+    return {
+      unsubscribe: () => {
+        if (localBroadcastChannel) localBroadcastChannel.onmessage = null;
+      },
+    };
+  }
+
+  // Create persistent Supabase Realtime Channel
   const channel = supabase
-    .channel('public:library-database-sync')
+    .channel('public:library-database-sync', {
+      config: {
+        broadcast: { self: false },
+      },
+    })
+    // 1. Instant WebSocket peer broadcast channel
+    .on(
+      'broadcast',
+      { event: 'realtime_event' },
+      (payload) => {
+        if (payload?.payload) {
+          handleIncomingBroadcast(payload.payload);
+        }
+      }
+    )
+    // 2. Postgres Change Data Capture (CDC) triggers
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'students' },
@@ -847,8 +973,34 @@ export function subscribeToAllDatabaseChanges(handlers: RealtimeHandlers): { uns
       }
     });
 
+  activeRealtimeChannel = channel;
+
+  // Auto-resync when device regains network or browser tab becomes visible
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible' && handlers.onForceSync) {
+      handlers.onForceSync();
+    }
+  };
+
+  const handleOnline = () => {
+    if (handlers.onForceSync) {
+      handlers.onForceSync();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+  }
+
   return {
     unsubscribe: () => {
+      if (localBroadcastChannel) localBroadcastChannel.onmessage = null;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('online', handleOnline);
+      }
+      activeRealtimeChannel = null;
       supabase.removeChannel(channel);
     },
   };

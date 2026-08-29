@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Menu, 
@@ -23,11 +23,15 @@ import {
   User,
   Database,
   RefreshCw,
-  Zap
+  Zap,
+  Activity,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from './Sidebar';
 import { WhatsAppManagerModal } from '../settings/WhatsAppManagerModal';
+import { testSupabaseConnection, isSupabaseConfigured } from '../../lib/supabase';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
@@ -64,6 +68,71 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Real-time Supabase Connection Health State
+  const [healthStatus, setHealthStatus] = useState<'healthy' | 'checking' | 'offline' | 'unconfigured'>(
+    isSupabaseConfigured ? (isRealtimeConnected ? 'healthy' : 'checking') : 'unconfigured'
+  );
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [healthMessage, setHealthMessage] = useState<string>('Memeriksa koneksi Supabase...');
+
+  const verifySupabaseHealth = useCallback(async (manual: boolean = false) => {
+    if (!isSupabaseConfigured) {
+      setHealthStatus('unconfigured');
+      setHealthMessage('Koneksi Supabase belum dikonfigurasi.');
+      return;
+    }
+
+    setHealthStatus('checking');
+    const startTime = performance.now();
+
+    try {
+      const result = await testSupabaseConnection();
+      const elapsed = Math.round(performance.now() - startTime);
+      setLatencyMs(elapsed);
+
+      if (result.connected) {
+        setHealthStatus('healthy');
+        setHealthMessage(`Koneksi Supabase Aktif & Sehat (${elapsed}ms). Real-time stream tersambung.`);
+      } else {
+        setHealthStatus('offline');
+        setHealthMessage(result.message || 'Koneksi ke Supabase terputus.');
+      }
+    } catch {
+      setHealthStatus('offline');
+      setHealthMessage('Gagal menghubungi server Supabase.');
+    }
+
+    if (manual) {
+      pullFromSupabase();
+    }
+  }, [pullFromSupabase]);
+
+  // Initial health check & listener for online status
+  useEffect(() => {
+    verifySupabaseHealth();
+
+    const handleOnline = () => verifySupabaseHealth();
+    const handleOffline = () => {
+      setHealthStatus('offline');
+      setHealthMessage('Koneksi internet terputus.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [verifySupabaseHealth]);
+
+  // Sync health status with context's isRealtimeConnected
+  useEffect(() => {
+    if (isRealtimeConnected && healthStatus !== 'checking') {
+      setHealthStatus('healthy');
+    }
+  }, [isRealtimeConnected, healthStatus]);
 
   // Clock ticker in WIB
   useEffect(() => {
@@ -131,32 +200,48 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
         {/* Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Realtime Database Sync Badge (Auto Refresh every 5s) */}
+          {/* Small Visual Supabase Connection Status Indicator */}
           <button
-            id="btn-header-realtime-status"
-            onClick={() => pullFromSupabase()}
-            disabled={isSupabaseSyncing}
-            title={isRealtimeConnected 
-              ? `Realtime DB Aktif (Auto-refresh otomatis setiap 5 detik). ${lastRealtimeSync ? `Terakhir diperbarui: ${new Date(lastRealtimeSync).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} WIB.` : ''} Klik untuk sinkronisasi manual sekarang.` 
-              : "Menghubungkan ke Database Supabase Real-time. Klik untuk cek koneksi."
-            }
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-              isRealtimeConnected
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
-                : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+            id="btn-header-supabase-health"
+            onClick={() => verifySupabaseHealth(true)}
+            disabled={healthStatus === 'checking' || isSupabaseSyncing}
+            title={`${healthMessage} ${latencyMs !== null ? `(Respon: ${latencyMs}ms)` : ''}. Klik untuk uji koneksi & sinkronisasi data.`}
+            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all cursor-pointer select-none ${
+              healthStatus === 'healthy'
+                ? 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
+                : healthStatus === 'checking' || isSupabaseSyncing
+                ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 hover:bg-rose-100'
             }`}
+            aria-label="Status Koneksi Supabase"
           >
-            {isSupabaseSyncing ? (
+            {healthStatus === 'checking' || isSupabaseSyncing ? (
               <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-            ) : isRealtimeConnected ? (
+            ) : healthStatus === 'healthy' ? (
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
             ) : (
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </span>
             )}
-            <span className="hidden xl:inline">{isSupabaseSyncing ? 'Sinkronisasi...' : isRealtimeConnected ? 'Realtime DB (5s)' : 'Cloud DB'}</span>
+
+            <div className="flex items-center gap-1.5 leading-none">
+              <span className="hidden sm:inline font-semibold">
+                {healthStatus === 'healthy'
+                  ? 'Supabase'
+                  : healthStatus === 'checking' || isSupabaseSyncing
+                  ? 'Memeriksa...'
+                  : 'Offline'}
+              </span>
+              {healthStatus === 'healthy' && latencyMs !== null && (
+                <span className="hidden xl:inline text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-mono">
+                  {latencyMs}ms
+                </span>
+              )}
+            </div>
           </button>
 
           {/* Live Clock Widget */}
