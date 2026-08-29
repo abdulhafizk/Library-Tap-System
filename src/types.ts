@@ -114,6 +114,13 @@ export interface TapResult {
   durationText?: string;
   timestamp: string;
   whatsappLog?: WhatsAppLog;
+  whatsappParentLog?: WhatsAppLog;
+  whatsappMessage?: string;
+  whatsappDirectUrl?: string;
+  whatsappParentDirectUrl?: string;
+  whatsappAdminDirectUrl?: string;
+  whatsappParentPhone?: string;
+  whatsappAdminPhone?: string;
 }
 
 export interface NotificationItem {

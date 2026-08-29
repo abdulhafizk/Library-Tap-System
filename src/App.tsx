@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LibraryProvider, useLibrary } from './context/LibraryContext';
 import { Sidebar, NavTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { TapPage } from './components/tap/TapPage';
 import { CirculationPage } from './components/circulation/CirculationPage';
@@ -66,7 +67,7 @@ function AppContent() {
         />
 
         {/* Page Content with Motion Page Transition */}
-        <main className={`flex-1 ${currentTab === 'kiosk' ? 'p-3 sm:p-6' : 'pb-12'}`}>
+        <main className={`flex-1 ${currentTab === 'kiosk' ? 'p-3 sm:p-6' : 'pb-24 lg:pb-12'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentTab}
@@ -92,6 +93,16 @@ function AppContent() {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation (Hidden on Desktop & Kiosk mode) */}
+      <MobileBottomNav
+        currentTab={currentTab}
+        onSelectTab={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+      />
 
       {/* User Profile & Password Modal */}
       <UserProfileModal

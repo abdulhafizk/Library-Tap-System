@@ -168,18 +168,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 flex items-center justify-between transition-all">
-        {/* Left: Mobile Toggle & Search Input */}
-        <div className="flex items-center gap-4 flex-1">
+      <header className="sticky top-0 z-30 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-8 flex items-center justify-between transition-all">
+        {/* Left: Mobile Library Name / Tablet Burger Menu / Desktop Search */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Tablet Only Burger Menu (Hidden on mobile <sm and desktop >=lg) */}
           <button
             id="btn-mobile-menu"
             onClick={onOpenMobileSidebar}
-            className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+            className="hidden sm:flex lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
             aria-label="Buka Menu"
           >
             <Menu className="w-5 h-5" />
           </button>
 
+          {/* Desktop & Tablet Search Input */}
           <div className="relative w-full max-w-sm hidden sm:block">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
@@ -191,22 +193,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             />
           </div>
 
-          <div className="sm:hidden">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight leading-none truncate max-w-[180px]">
+          {/* Mobile Display: Tulisan Perpustakaan ... */}
+          <div className="sm:hidden flex items-center min-w-0 flex-1 pr-2">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight leading-snug truncate">
               {settings.library_name}
             </h2>
           </div>
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Small Visual Supabase Connection Status Indicator */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Small Visual Supabase Connection Status Indicator (Desktop/Tablet) */}
           <button
             id="btn-header-supabase-health"
             onClick={() => verifySupabaseHealth(true)}
             disabled={healthStatus === 'checking' || isSupabaseSyncing}
             title={`${healthMessage} ${latencyMs !== null ? `(Respon: ${latencyMs}ms)` : ''}. Klik untuk uji koneksi & sinkronisasi data.`}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all cursor-pointer select-none ${
+            className={`hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all cursor-pointer select-none ${
               healthStatus === 'healthy'
                 ? 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
                 : healthStatus === 'checking' || isSupabaseSyncing
@@ -244,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             </div>
           </button>
 
-          {/* Live Clock Widget */}
+          {/* Live Clock Widget (Desktop/Tablet) */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{currentTime}</span>
@@ -275,12 +278,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             <span>Display TV</span>
           </button>
 
-          {/* Dark Mode Quick Toggle */}
+          {/* Dark Mode Quick Toggle (Desktop/Tablet) */}
           <button
             id="btn-header-dark-mode"
             onClick={toggleDarkMode}
             title={isDarkMode ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
-            className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors cursor-pointer ${
+            className={`hidden sm:flex w-9 h-9 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
               isDarkMode
                 ? 'bg-slate-800 text-amber-400 border-slate-700 hover:bg-slate-700 shadow-2xs'
                 : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
@@ -304,12 +307,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             {settings.sound_enabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          {/* Notifications Dropdown */}
+          {/* Primary Action: Tombol Tap (Visible on Mobile & Desktop) */}
+          <button
+            id="btn-quick-tap"
+            onClick={() => onNavigate('tap')}
+            className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm shadow-blue-200 dark:shadow-none flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+          >
+            <Radio className="w-4 h-4" />
+            <span>Tap</span>
+            <span className="hidden sm:inline">Kartu</span>
+          </button>
+
+          {/* Notifications Dropdown (Visible on Mobile & Desktop) */}
           <div className="relative">
             <button
               id="btn-notifications"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 relative cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200/60 dark:border-slate-700"
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-500 dark:text-slate-400 relative cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200/80 dark:border-slate-700"
               aria-label="Notifikasi"
             >
               <Bell className="w-4 h-4" />
@@ -391,20 +405,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             </AnimatePresence>
           </div>
 
-          {/* Primary Action: Tap Kartu Baru */}
-          <button
-            id="btn-quick-tap"
-            onClick={() => onNavigate('tap')}
-            className="px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-sm shadow-blue-200 dark:shadow-none flex items-center gap-2 cursor-pointer"
-          >
-            <Radio className="w-4 h-4" />
-            <span className="hidden sm:inline">Tap Kartu</span>
-            <span className="sm:hidden">Tap</span>
-          </button>
-
-          {/* User Profile Dropdown */}
+          {/* User Profile Dropdown (Desktop/Tablet only) */}
           {currentUser && (
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <button
                 id="btn-header-user-menu"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}

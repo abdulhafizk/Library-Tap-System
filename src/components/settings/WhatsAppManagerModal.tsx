@@ -292,23 +292,70 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
                 </div>
               </div>
 
-              {/* Webhook Gateway Setup (Optional) */}
+              {/* Webhook Gateway & Provider Setup */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-emerald-600" />
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Webhook Gateway WhatsApp (Opsional / Otomatis API)
+                      Pilihan Gateway & Provider WhatsApp
                     </h4>
                   </div>
-                  <span className="text-[10px] text-slate-400">Fonnte / Wablas / Baileys / Whacenter</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {formConfig.webhook_url ? 'Mode Webhook Gateway' : 'Mode Direct wa.me'}
+                  </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Jika Anda memiliki layanan WhatsApp Gateway (misal: <em>Fonnte, Wablas, Whacenter, UltraMsg</em> atau server node Baileys sendiri), masukkan URL Webhook di bawah agar pesan terkirim secara background tanpa membuka WhatsApp manual. Jika dikosongkan, sistem tetap menghasilkan tautan <strong>Direct wa.me</strong> yang siap dikirim sekali klik!
+                  Pilih layanan penyedia gateway WhatsApp yang Anda gunakan untuk pengiriman pesan di latar belakang (background), atau gunakan mode direct link wa.me yang bekerja tanpa biaya langganan gateway!
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Provider WhatsApp
+                    </label>
+                    <select
+                      value={formConfig.provider || 'fonnte'}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        let url = formConfig.webhook_url;
+                        if (val === 'fonnte' && (!url || url.includes('wablas') || url.includes('whacenter'))) {
+                          url = 'https://api.fonnte.com/send';
+                        } else if (val === 'wablas' && (!url || url.includes('fonnte') || url.includes('whacenter'))) {
+                          url = 'https://kudus.wablas.com/api/send-message';
+                        } else if (val === 'whacenter' && (!url || url.includes('fonnte') || url.includes('wablas'))) {
+                          url = 'https://app.whacenter.com/api/send';
+                        }
+                        setFormConfig({ ...formConfig, provider: val, webhook_url: url });
+                      }}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    >
+                      <option value="fonnte">Fonnte (Rekomendasi Indonesia)</option>
+                      <option value="wablas">Wablas Gateway</option>
+                      <option value="whacenter">Whacenter Gateway</option>
+                      <option value="generic">Generic Webhook / Baileys Node.js</option>
+                      <option value="custom">Custom REST API</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Buka Tautan wa.me Otomatis Saat Tap
+                    </label>
+                    <div className="flex items-center h-9 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={formConfig.auto_open_direct_link || false}
+                          onChange={(e) => setFormConfig({ ...formConfig, auto_open_direct_link: e.target.checked })}
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span>Buka tab WhatsApp otomatis</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
                     <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                       Endpoint Webhook URL
                     </label>
@@ -321,7 +368,7 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                       API Token / Authorization Key
                     </label>
@@ -329,7 +376,7 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
                       type="password"
                       value={formConfig.webhook_api_key || ''}
                       onChange={(e) => setFormConfig({ ...formConfig, webhook_api_key: e.target.value })}
-                      placeholder="Token API Gateway Anda..."
+                      placeholder="Token API Gateway (Misal Token Fonnte)..."
                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                     />
                   </div>

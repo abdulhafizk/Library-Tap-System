@@ -417,8 +417,8 @@ export const CirculationPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Loans Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+          {/* Loans Table (Desktop & Tablet) */}
+          <div className="hidden sm:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                 <thead className="bg-slate-50/80 dark:bg-slate-800/60 text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200/80 dark:border-slate-800">
@@ -552,6 +552,120 @@ export const CirculationPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Loans Card List (Mobile Smartphone View) */}
+          <div className="sm:hidden space-y-3">
+            {filteredLoans.length === 0 ? (
+              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400">
+                <BookOpen className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="font-semibold text-sm">Tidak ada data peminjaman</p>
+                <p className="text-xs text-slate-400 mt-1">Sesuaikan filter atau pencarian di atas.</p>
+              </div>
+            ) : (
+              filteredLoans.map(loan => {
+                const student = students.find(s => s.id === loan.student_id);
+                const book = books.find(b => b.id === loan.book_id);
+                const now = new Date();
+                const dueDate = new Date(loan.due_date);
+                const isOverdue = loan.status === 'borrowed' && dueDate < now;
+                const isReturned = loan.status === 'returned';
+
+                return (
+                  <div 
+                    key={`mobile-loan-${loan.id}`}
+                    className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <div>
+                        <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
+                          {loan.loan_code}
+                        </span>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+                          {student?.name || 'Santri'}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          NIS: {student?.nis || '-'} • Kelas {student?.class || '-'}
+                        </p>
+                      </div>
+
+                      {isReturned ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200 shrink-0">
+                          <CheckCircle className="w-3 h-3" />
+                          Kembali
+                        </span>
+                      ) : isOverdue ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400 border border-rose-200 animate-pulse shrink-0">
+                          <AlertTriangle className="w-3 h-3" />
+                          Terlambat
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border border-blue-200 shrink-0">
+                          <Clock className="w-3 h-3" />
+                          Dipinjam
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 text-xs">
+                      <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span className="line-clamp-1">{book?.title || 'Kitab'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                        <span>Pinjam: {new Date(loan.borrow_date).toLocaleDateString('id-ID', { dateStyle: 'short' })}</span>
+                        <span className={`font-semibold ${isOverdue ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                          Tempo: {new Date(loan.due_date).toLocaleDateString('id-ID', { dateStyle: 'short' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons for Mobile */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      {!isReturned ? (
+                        <>
+                          <button
+                            onClick={() => handleOpenReturn(loan)}
+                            className="py-2 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs active:scale-95 transition-transform"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Kembalikan
+                          </button>
+                          <button
+                            onClick={() => extendLoan(loan.id, 7)}
+                            className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                          >
+                            +7 Hari
+                          </button>
+                          <button
+                            onClick={() => sendLoanWhatsAppReminder(loan.id)}
+                            className="py-2 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            Kirim WA
+                          </button>
+                          <button
+                            onClick={() => handleOpenReceipt(loan, 'loan')}
+                            className="py-2 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            Struk
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenReceipt(loan, 'return')}
+                          className="col-span-2 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Cetak Bukti Pengembalian
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}

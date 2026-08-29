@@ -2,6 +2,7 @@
 
 export interface WhatsAppNotificationConfig {
   enabled: boolean;
+  provider?: 'direct_link' | 'webhook' | 'fonnte' | 'wablas' | 'whacenter' | 'starsender' | 'ultramsg';
   notify_on_check_in: boolean;
   notify_on_check_out: boolean;
   notify_on_book_loan: boolean;
@@ -10,6 +11,7 @@ export interface WhatsAppNotificationConfig {
   reminder_minutes_before: number; // e.g. 15 or 30 minutes before
   admin_phone: string; // Target WA admin/pustakawan (e.g. 6281234567890)
   use_student_parent_phone: boolean; // Also send to student's registered phone
+  auto_open_direct_link?: boolean; // Automatically trigger WhatsApp link on tap if supported
   webhook_url?: string; // Optional custom gateway (Fonnte, Wablas, Whacenter, Baileys, etc.)
   webhook_api_key?: string; // Optional token / API key
   open_reminder_template?: string;
@@ -179,6 +181,20 @@ export function renderWhatsAppTemplate(template: string, vars: Record<string, st
 }
 
 /**
+ * Safely open direct WhatsApp link
+ */
+export function openWhatsAppDirect(phone: string, message: string): boolean {
+  try {
+    const link = createWhatsAppDirectLink(phone, message);
+    const win = window.open(link, '_blank', 'noopener,noreferrer');
+    return Boolean(win);
+  } catch (err) {
+    console.warn('Failed to open WhatsApp window directly', err);
+    return false;
+  }
+}
+
+/**
  * Send WhatsApp message using custom Webhook or Fallback Direct wa.me link
  */
 export async function sendWhatsAppMessage(
@@ -203,19 +219,24 @@ export async function sendWhatsAppMessage(
     direct_wa_link: directLink,
   };
 
+  const webhookUrl = config.webhook_url?.trim();
+  const apiKey = config.webhook_api_key?.trim();
+
   // If a custom webhook/gateway endpoint is configured, attempt HTTP POST
-  if (config.webhook_url && config.webhook_url.trim().startsWith('http')) {
+  if (webhookUrl && (webhookUrl.startsWith('http://') || webhookUrl.startsWith('https://'))) {
     try {
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       };
-      if (config.webhook_api_key) {
-        headers['Authorization'] = config.webhook_api_key;
-        headers['api-key'] = config.webhook_api_key;
-        headers['token'] = config.webhook_api_key;
+
+      if (apiKey) {
+        headers['Authorization'] = apiKey;
+        headers['api-key'] = apiKey;
+        headers['token'] = apiKey;
       }
 
-      const payload = {
+      // Format payload supporting multiple popular providers
+      const payload: Record<string, any> = {
         target: formattedPhone,
         phone: formattedPhone,
         number: formattedPhone,
@@ -226,7 +247,12 @@ export async function sendWhatsAppMessage(
         timestamp: new Date().toISOString()
       };
 
-      const response = await fetch(config.webhook_url, {
+      // Fonnte special support
+      if (config.provider === 'fonnte' || webhookUrl.includes('fonnte.com')) {
+        payload['countryCode'] = '62';
+      }
+
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
@@ -242,12 +268,21 @@ export async function sendWhatsAppMessage(
       }
     } catch (err: any) {
       logEntry.status = 'failed';
-      logEntry.gateway_response = `Network/CORS Error: ${err?.message || 'Gagal terhubung ke webhook'}`;
+      logEntry.gateway_response = `Network / CORS: ${err?.message || 'Gateway belum mengizinkan CORS langsung atau offline'}. Link wa.me siap digunakan manual.`;
     }
   } else {
-    // Simulated delivery with ready-to-click wa.me link
+    // Direct Link / Simulation Mode with ready-to-click wa.me link
     logEntry.status = 'simulated';
-    logEntry.gateway_response = 'Simulasi Terkirim (Siap Buka via WhatsApp Web / App)';
+    logEntry.gateway_response = 'Siap dikirim via WhatsApp Web / App (1-Klik wa.me)';
+  }
+
+  // If auto open is enabled and direct link is ready, attempt open
+  if (config.auto_open_direct_link && typeof window !== 'undefined') {
+    try {
+      openWhatsAppDirect(formattedPhone, message);
+    } catch (e) {
+      // ignore popup blocker
+    }
   }
 
   return logEntry;

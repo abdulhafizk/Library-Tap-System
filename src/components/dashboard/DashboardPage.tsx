@@ -140,9 +140,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
   const capacityPercentage = Math.min(100, Math.round((activeVisitsCount / (settings.capacity || 60)) * 100));
 
   return (
-    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-5 max-w-7xl mx-auto">
       {/* Top Banner Row: Kios TV, Sirkulasi Buku, & Penghargaan Santri */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
         {/* Banner Mode Kios Display TV */}
         <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white border border-slate-800 shadow-md flex flex-col justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -437,9 +437,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
             </button>
           </div>
 
-          <div className="flex-1 overflow-x-auto">
+          {/* Table (Desktop & Tablet) */}
+          <div className="hidden sm:block flex-1 overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-bold tracking-widest sticky top-0">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-400 uppercase text-[10px] font-bold tracking-widest sticky top-0">
                 <tr>
                   <th className="px-6 py-3">Santri</th>
                   <th className="px-6 py-3">Waktu</th>
@@ -447,7 +448,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {recentVisits.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
@@ -461,32 +462,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                     const timeDisplay = isOut ? visit.check_out! : visit.check_in;
 
                     return (
-                      <tr key={visit.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={visit.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             {student?.photo_url ? (
                               <img src={student.photo_url} alt={student.name} className="w-8 h-8 rounded-full object-cover" />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-[10px] font-bold">
                                 {student?.name?.slice(0, 2).toUpperCase() || 'ST'}
                               </div>
                             )}
                             <div>
-                              <p className="text-sm font-bold text-slate-900">{student?.name || 'Santri'}</p>
-                              <p className="text-[10px] text-slate-500">NIS: {student?.nis || '-'} • Kelas {student?.class || '-'}</p>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">{student?.name || 'Santri'}</p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400">NIS: {student?.nis || '-'} • Kelas {student?.class || '-'}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-xs font-medium text-slate-600 font-mono">
+                        <td className="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-300 font-mono">
                           {new Date(timeDisplay).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </td>
                         <td className="px-6 py-4">
                           {isOut ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-600 uppercase tracking-tight">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 uppercase tracking-tight">
                               Keluar
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 uppercase tracking-tight">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 uppercase tracking-tight">
                               Masuk
                             </span>
                           )}
@@ -500,6 +501,53 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Cards List (Mobile Smartphone View) */}
+          <div className="sm:hidden p-3 space-y-2.5">
+            {recentVisits.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400">
+                Belum ada riwayat tap hari ini.
+              </div>
+            ) : (
+              recentVisits.map((visit) => {
+                const student = studentsMap.get(visit.student_id);
+                const isOut = visit.check_out !== null;
+                const timeDisplay = isOut ? visit.check_out! : visit.check_in;
+
+                return (
+                  <div key={`mobile-recent-${visit.id}`} className="flex items-center justify-between p-2.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      {student?.photo_url ? (
+                        <img src={student.photo_url} alt={student.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xs font-bold shrink-0">
+                          {student?.name?.slice(0, 2).toUpperCase() || 'ST'}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">{student?.name || 'Santri'}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Kelas {student?.class || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {isOut ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 uppercase tracking-tight">
+                          Keluar
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 uppercase tracking-tight">
+                          Masuk
+                        </span>
+                      )}
+                      <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-1">
+                        {new Date(timeDisplay).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 

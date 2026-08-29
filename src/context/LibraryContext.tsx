@@ -29,7 +29,9 @@ import { soundManager } from '../utils/audio';
 import { 
   defaultWhatsAppConfig, 
   sendWhatsAppMessage, 
-  renderWhatsAppTemplate 
+  renderWhatsAppTemplate,
+  createWhatsAppDirectLink,
+  openWhatsAppDirect 
 } from '../utils/whatsappUtils';
 import { 
   syncAllToSupabase, 
@@ -934,9 +936,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // WhatsApp Notification on Check-Out
       let waLogResult: WhatsAppLog | undefined;
+      let renderedMessage = '';
+      let adminDirectUrl = '';
+      let parentDirectUrl = '';
+
       if (waConfig.enabled && waConfig.notify_on_check_out) {
         const template = waConfig.check_out_template || defaultWhatsAppConfig.check_out_template!;
-        const renderedMessage = renderWhatsAppTemplate(template, {
+        renderedMessage = renderWhatsAppTemplate(template, {
           STUDENT_NAME: student.name,
           STUDENT_NIS: student.nis,
           STUDENT_CLASS: student.class,
@@ -947,18 +953,25 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           INSTITUTION_NAME: settings.institution_name,
         });
 
-        // Send to Admin
-        sendWhatsAppMessage(waConfig.admin_phone, `${student.name} (Admin)`, renderedMessage, 'check_out', waConfig)
-          .then(log => {
-            setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
-          });
+        if (waConfig.admin_phone) {
+          adminDirectUrl = createWhatsAppDirectLink(waConfig.admin_phone, renderedMessage);
+          // Send to Admin
+          sendWhatsAppMessage(waConfig.admin_phone, `${student.name} (Admin)`, renderedMessage, 'check_out', waConfig)
+            .then(log => {
+              waLogResult = log;
+              setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
+            })
+            .catch(err => console.warn('WhatsApp Admin error:', err));
+        }
 
         // Also optionally send to student / parent phone
         if (waConfig.use_student_parent_phone && student.phone) {
+          parentDirectUrl = createWhatsAppDirectLink(student.phone, renderedMessage);
           sendWhatsAppMessage(student.phone, `${student.name} (Wali/Santri)`, renderedMessage, 'check_out', waConfig)
             .then(log => {
               setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
-            });
+            })
+            .catch(err => console.warn('WhatsApp Parent error:', err));
         }
       }
 
@@ -972,13 +985,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         durationText,
         timestamp: nowIso,
         whatsappLog: waLogResult,
+        whatsappMessage: renderedMessage || undefined,
+        whatsappDirectUrl: parentDirectUrl || adminDirectUrl || undefined,
+        whatsappParentDirectUrl: parentDirectUrl || undefined,
+        whatsappAdminDirectUrl: adminDirectUrl || undefined,
+        whatsappParentPhone: student.phone || undefined,
+        whatsappAdminPhone: waConfig.admin_phone || undefined,
       };
 
       setCurrentTapResult(result);
       setIsProcessingTap(false);
       pushNotification(
         'Santri Keluar', 
-        `${student.name} (${student.class}) keluar. Durasi: ${durationText}${waConfig.enabled ? ' (Notifikasi WA dikirim)' : ''}`, 
+        `${student.name} (${student.class}) keluar. Durasi: ${durationText}${waConfig.enabled ? ' (Notifikasi WA diproses)' : ''}`, 
         'info'
       );
       return result;
@@ -1013,9 +1032,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // WhatsApp Notification on Check-In
       let waLogResult: WhatsAppLog | undefined;
+      let renderedMessage = '';
+      let adminDirectUrl = '';
+      let parentDirectUrl = '';
+
       if (waConfig.enabled && waConfig.notify_on_check_in) {
         const template = waConfig.check_in_template || defaultWhatsAppConfig.check_in_template!;
-        const renderedMessage = renderWhatsAppTemplate(template, {
+        renderedMessage = renderWhatsAppTemplate(template, {
           STUDENT_NAME: student.name,
           STUDENT_NIS: student.nis,
           STUDENT_CLASS: student.class,
@@ -1025,18 +1048,25 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           INSTITUTION_NAME: settings.institution_name,
         });
 
-        // Send to Admin
-        sendWhatsAppMessage(waConfig.admin_phone, `${student.name} (Admin)`, renderedMessage, 'check_in', waConfig)
-          .then(log => {
-            setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
-          });
+        if (waConfig.admin_phone) {
+          adminDirectUrl = createWhatsAppDirectLink(waConfig.admin_phone, renderedMessage);
+          // Send to Admin
+          sendWhatsAppMessage(waConfig.admin_phone, `${student.name} (Admin)`, renderedMessage, 'check_in', waConfig)
+            .then(log => {
+              waLogResult = log;
+              setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
+            })
+            .catch(err => console.warn('WhatsApp Admin error:', err));
+        }
 
         // Also optionally send to student / parent phone
         if (waConfig.use_student_parent_phone && student.phone) {
+          parentDirectUrl = createWhatsAppDirectLink(student.phone, renderedMessage);
           sendWhatsAppMessage(student.phone, `${student.name} (Wali/Santri)`, renderedMessage, 'check_in', waConfig)
             .then(log => {
               setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]);
-            });
+            })
+            .catch(err => console.warn('WhatsApp Parent error:', err));
         }
       }
 
@@ -1048,13 +1078,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         checkInTime: timeInStr,
         timestamp: nowIso,
         whatsappLog: waLogResult,
+        whatsappMessage: renderedMessage || undefined,
+        whatsappDirectUrl: parentDirectUrl || adminDirectUrl || undefined,
+        whatsappParentDirectUrl: parentDirectUrl || undefined,
+        whatsappAdminDirectUrl: adminDirectUrl || undefined,
+        whatsappParentPhone: student.phone || undefined,
+        whatsappAdminPhone: waConfig.admin_phone || undefined,
       };
 
       setCurrentTapResult(result);
       setIsProcessingTap(false);
       pushNotification(
         'Santri Masuk', 
-        `${student.name} (${student.class}) masuk perpustakaan.${waConfig.enabled ? ' (Notifikasi WA dikirim)' : ''}`, 
+        `${student.name} (${student.class}) masuk perpustakaan.${waConfig.enabled ? ' (Notifikasi WA diproses)' : ''}`, 
         'success'
       );
       return result;
@@ -1068,6 +1104,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const manualCheckOut = useCallback((visitId: string) => {
     const nowIso = new Date().toISOString();
     let updatedVisit: LibraryVisit | null = null;
+    let studentForVisit: Student | undefined;
+
     setVisits(prev => prev.map(v => {
       if (v.id === visitId && v.status === 'inside') {
         const checkInTime = new Date(v.check_in);
@@ -1081,6 +1119,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           notes: (v.notes ? v.notes + ' ' : '') + '(Check-out manual oleh petugas)'
         };
         updatedVisit = mod;
+        studentForVisit = students.find(s => s.id === v.student_id);
         return mod;
       }
       return v;
@@ -1094,9 +1133,40 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         payload: updatedVisit,
       });
       updateVisitInSupabase(updatedVisit.id, updatedVisit).catch(() => {});
+
+      // If WhatsApp notification is enabled for check-out, trigger it
+      const waConfig = settings.whatsapp || defaultWhatsAppConfig;
+      if (waConfig.enabled && waConfig.notify_on_check_out && studentForVisit) {
+        const st = studentForVisit as Student;
+        const durationText = formatDurationText(updatedVisit.duration_minutes || 1);
+        const timeInStr = formatTime(updatedVisit.check_in);
+        const timeOutStr = formatTime(nowIso);
+        const template = waConfig.check_out_template || defaultWhatsAppConfig.check_out_template!;
+        const renderedMessage = renderWhatsAppTemplate(template, {
+          STUDENT_NAME: st.name,
+          STUDENT_NIS: st.nis,
+          STUDENT_CLASS: st.class,
+          TIME_IN: timeInStr,
+          TIME_OUT: timeOutStr,
+          DURATION_TEXT: durationText,
+          LIBRARY_NAME: settings.library_name,
+          INSTITUTION_NAME: settings.institution_name,
+        });
+
+        if (waConfig.admin_phone) {
+          sendWhatsAppMessage(waConfig.admin_phone, `${st.name} (Admin)`, renderedMessage, 'check_out', waConfig)
+            .then(log => setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]))
+            .catch(() => {});
+        }
+        if (waConfig.use_student_parent_phone && st.phone) {
+          sendWhatsAppMessage(st.phone, `${st.name} (Wali/Santri)`, renderedMessage, 'check_out', waConfig)
+            .then(log => setWhatsappLogs(prev => [log, ...prev.slice(0, 50)]))
+            .catch(() => {});
+        }
+      }
     }
     pushNotification('Check-out Manual', 'Santri berhasil di-checkout manual oleh petugas.', 'info');
-  }, [pushNotification]);
+  }, [pushNotification, students, settings]);
 
   // Student CRUD
   const addStudent = useCallback((data: Omit<Student, 'id' | 'created_at'>): Student => {

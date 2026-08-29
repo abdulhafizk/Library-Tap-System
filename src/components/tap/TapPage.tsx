@@ -29,13 +29,16 @@ import {
   FlashlightOff,
   SwitchCamera,
   ScanLine,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import jsQR from 'jsqr';
 import { useLibrary } from '../../context/LibraryContext';
 import { TapResult } from '../../types';
 import { soundManager } from '../../utils/audio';
+import { createWhatsAppDirectLink, openWhatsAppDirect } from '../../utils/whatsappUtils';
 
 interface TapPageProps {
   onGoToStudents?: () => void;
@@ -58,6 +61,9 @@ export const TapPage: React.FC<TapPageProps> = () => {
   const [activeMethod, setActiveMethod] = useState<'nfc_rfid' | 'camera'>('nfc_rfid');
   const [showNfcGuide, setShowNfcGuide] = useState(false);
   const [soundFeedbackToast, setSoundFeedbackToast] = useState<string | null>(null);
+  const [isHoveringResult, setIsHoveringResult] = useState(false);
+  const [copiedWaMessage, setCopiedWaMessage] = useState(false);
+  const [showWaMessagePreview, setShowWaMessagePreview] = useState(false);
 
   // Web NFC State for Smartphones (Android Chrome / Edge)
   const [isNfcSupported, setIsNfcSupported] = useState(false);
@@ -473,27 +479,34 @@ export const TapPage: React.FC<TapPageProps> = () => {
       setCountdown(settings.auto_reset_seconds || 4);
       if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
 
-      const startTime = Date.now();
-      const totalDuration = (settings.auto_reset_seconds || 4) * 1000;
+      let remainingMs = (settings.auto_reset_seconds || 4) * 1000;
+      let lastTick = Date.now();
 
       countdownTimerRef.current = window.setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const remaining = Math.max(0, Math.ceil((totalDuration - elapsed) / 1000));
-        setCountdown(remaining);
+        const now = Date.now();
+        const delta = now - lastTick;
+        lastTick = now;
 
-        if (elapsed >= totalDuration) {
-          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-          clearCurrentTapResult();
-          setInputUid('');
-          inputRef.current?.focus();
+        // If user is hovering or interacting with WhatsApp options, pause countdown
+        if (!isHoveringResult) {
+          remainingMs -= delta;
+          const remainingSecs = Math.max(0, Math.ceil(remainingMs / 1000));
+          setCountdown(remainingSecs);
+
+          if (remainingMs <= 0) {
+            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+            clearCurrentTapResult();
+            setInputUid('');
+            inputRef.current?.focus();
+          }
         }
-      }, 200);
+      }, 100);
 
       return () => {
         if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
       };
     }
-  }, [currentTapResult, settings.auto_reset_seconds, clearCurrentTapResult]);
+  }, [currentTapResult, settings.auto_reset_seconds, clearCurrentTapResult, isHoveringResult]);
 
   const executeTap = async (uid: string) => {
     if (!uid.trim()) return;
@@ -1074,16 +1087,111 @@ export const TapPage: React.FC<TapPageProps> = () => {
                   </div>
                 </div>
 
-                {/* Check-in timestamp badge & WhatsApp status */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-6">
-                  <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-semibold text-sm border border-emerald-100 dark:border-emerald-800/60 w-full sm:w-auto">
+                {/* Check-in timestamp badge */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-semibold text-sm border border-emerald-100 dark:border-emerald-800/60 w-full sm:w-auto">
                     <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     <span>Masuk: {currentTapResult.checkInTime}</span>
                   </div>
-                  {settings.whatsapp?.enabled && settings.whatsapp?.notify_on_check_in && (
-                    <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold text-xs border border-emerald-200 dark:border-emerald-800 w-full sm:w-auto">
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span>Notifikasi WA Terkirim</span>
+                </div>
+
+                {/* Dedicated WhatsApp Notification Action Box */}
+                <div 
+                  onMouseEnter={() => setIsHoveringResult(true)}
+                  onMouseLeave={() => setIsHoveringResult(false)}
+                  className="mb-6 p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/90 dark:border-emerald-800 text-left space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                          Notifikasi WhatsApp Tap Masuk
+                        </span>
+                        <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                          {settings.whatsapp?.enabled 
+                            ? (settings.whatsapp.webhook_url ? 'Gateway Webhook Bot Terhubung (Terkirim Otomatis)' : 'Mode Kirim Langsung (wa.me)')
+                            : 'Status: Nonaktif di Pengaturan'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      settings.whatsapp?.enabled
+                        ? 'bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
+                    }`}>
+                      {settings.whatsapp?.enabled ? 'SIAP KIRIM' : 'NONAKTIF'}
+                    </span>
+                  </div>
+
+                  {/* 1-Click WhatsApp Action Buttons */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    {currentTapResult.student.phone ? (
+                      <a
+                        href={currentTapResult.whatsappParentDirectUrl || createWhatsAppDirectLink(currentTapResult.student.phone, currentTapResult.whatsappMessage || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Kirim WA ke Santri / Wali ({currentTapResult.student.phone})</span>
+                        <ExternalLink className="w-3 h-3 opacity-80" />
+                      </a>
+                    ) : (
+                      <div className="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700">
+                        <Info className="w-3.5 h-3.5" />
+                        <span>No. HP santri belum diisi</span>
+                      </div>
+                    )}
+
+                    {settings.whatsapp?.admin_phone && (
+                      <a
+                        href={currentTapResult.whatsappAdminDirectUrl || createWhatsAppDirectLink(settings.whatsapp.admin_phone, currentTapResult.whatsappMessage || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                      >
+                        <span>Ke Admin</span>
+                        <ExternalLink className="w-3 h-3 opacity-80" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* View & Copy WhatsApp Text Collapsible */}
+                  {currentTapResult.whatsappMessage && (
+                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/60">
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setShowWaMessagePreview(!showWaMessagePreview)}
+                          className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{showWaMessagePreview ? 'Sembunyikan Teks Pesan' : 'Lihat Format Pesan WA'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentTapResult.whatsappMessage) {
+                              navigator.clipboard.writeText(currentTapResult.whatsappMessage);
+                              setCopiedWaMessage(true);
+                              setTimeout(() => setCopiedWaMessage(false), 2000);
+                            }
+                          }}
+                          className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/50 px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedWaMessage ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedWaMessage ? 'Tersalin!' : 'Salin Teks'}</span>
+                        </button>
+                      </div>
+
+                      {showWaMessagePreview && (
+                        <pre className="mt-2 p-2.5 bg-white dark:bg-slate-950 rounded-xl text-[11px] text-slate-700 dark:text-slate-300 font-mono whitespace-pre-wrap border border-emerald-200/80 dark:border-slate-800 leading-relaxed max-h-36 overflow-y-auto">
+                          {currentTapResult.whatsappMessage}
+                        </pre>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1168,12 +1276,106 @@ export const TapPage: React.FC<TapPageProps> = () => {
                   </div>
                 </div>
 
-                {settings.whatsapp?.enabled && settings.whatsapp?.notify_on_check_out && (
-                  <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-bold text-xs border border-blue-200 dark:border-blue-800 mb-6">
-                    <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>Notifikasi Rekap Durasi WA Terkirim</span>
+                {/* Dedicated WhatsApp Notification Action Box for Check-Out */}
+                <div 
+                  onMouseEnter={() => setIsHoveringResult(true)}
+                  onMouseLeave={() => setIsHoveringResult(false)}
+                  className="mb-6 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/90 dark:border-blue-800 text-left space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                          Notifikasi WhatsApp Tap Keluar & Rekap Durasi
+                        </span>
+                        <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                          {settings.whatsapp?.enabled 
+                            ? (settings.whatsapp.webhook_url ? 'Gateway Webhook Bot Terhubung (Terkirim Otomatis)' : 'Mode Kirim Langsung (wa.me)')
+                            : 'Status: Nonaktif di Pengaturan'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      settings.whatsapp?.enabled
+                        ? 'bg-blue-200/70 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
+                    }`}>
+                      {settings.whatsapp?.enabled ? 'SIAP KIRIM' : 'NONAKTIF'}
+                    </span>
                   </div>
-                )}
+
+                  {/* 1-Click WhatsApp Action Buttons */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    {currentTapResult.student.phone ? (
+                      <a
+                        href={currentTapResult.whatsappParentDirectUrl || createWhatsAppDirectLink(currentTapResult.student.phone, currentTapResult.whatsappMessage || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Kirim WA ke Santri / Wali ({currentTapResult.student.phone})</span>
+                        <ExternalLink className="w-3 h-3 opacity-80" />
+                      </a>
+                    ) : (
+                      <div className="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700">
+                        <Info className="w-3.5 h-3.5" />
+                        <span>No. HP santri belum diisi</span>
+                      </div>
+                    )}
+
+                    {settings.whatsapp?.admin_phone && (
+                      <a
+                        href={currentTapResult.whatsappAdminDirectUrl || createWhatsAppDirectLink(settings.whatsapp.admin_phone, currentTapResult.whatsappMessage || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                      >
+                        <span>Ke Admin</span>
+                        <ExternalLink className="w-3 h-3 opacity-80" />
+                      </a>
+                    )}
+                  </div>
+
+                  {/* View & Copy WhatsApp Text Collapsible */}
+                  {currentTapResult.whatsappMessage && (
+                    <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/60">
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setShowWaMessagePreview(!showWaMessagePreview)}
+                          className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{showWaMessagePreview ? 'Sembunyikan Teks Pesan' : 'Lihat Format Pesan WA'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentTapResult.whatsappMessage) {
+                              navigator.clipboard.writeText(currentTapResult.whatsappMessage);
+                              setCopiedWaMessage(true);
+                              setTimeout(() => setCopiedWaMessage(false), 2000);
+                            }
+                          }}
+                          className="text-[11px] font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 dark:hover:bg-blue-900/50 px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedWaMessage ? <Check className="w-3 h-3 text-blue-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedWaMessage ? 'Tersalin!' : 'Salin Teks'}</span>
+                        </button>
+                      </div>
+
+                      {showWaMessagePreview && (
+                        <pre className="mt-2 p-2.5 bg-white dark:bg-slate-950 rounded-xl text-[11px] text-slate-700 dark:text-slate-300 font-mono whitespace-pre-wrap border border-blue-200/80 dark:border-slate-800 leading-relaxed max-h-36 overflow-y-auto">
+                          {currentTapResult.whatsappMessage}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span>Terima kasih telah berkunjung ke perpustakaan</span>

@@ -270,12 +270,12 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
         </div>
       </div>
 
-      {/* Table Data Santri */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      {/* Table Data Santri (Desktop & Tablet) */}
+      <div className="hidden sm:block bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
+              <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase tracking-wider font-bold">
                 <th className="py-3.5 px-4 w-12 text-center">No</th>
                 <th className="py-3.5 px-4">Santri</th>
                 <th className="py-3.5 px-4">NIS</th>
@@ -286,7 +286,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                 <th className="py-3.5 px-4 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
@@ -295,7 +295,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => (
-                  <tr key={student.id || `student-${student.nis}-${idx}`} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={student.id || `student-${student.nis}-${idx}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 text-center font-medium text-slate-400">{idx + 1}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -303,37 +303,37 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                           <img
                             src={student.photo_url}
                             alt={student.name}
-                            className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200"
+                            className="w-10 h-10 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 ring-1 ring-slate-200 shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 shrink-0">
                             <User className="w-5 h-5" />
                           </div>
                         )}
                         <div>
-                          <p className="font-bold text-slate-800 text-sm">{student.name}</p>
+                          <p className="font-bold text-slate-800 dark:text-white text-sm">{student.name}</p>
                           <p className="text-[11px] text-slate-400">{student.phone || 'Tanpa no. telepon'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-4 font-mono font-medium">{student.nis}</td>
                     <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-semibold text-[11px] border border-indigo-100">
+                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 font-semibold text-[11px] border border-indigo-100 dark:border-indigo-900">
                         {student.class}
                       </span>
                     </td>
                     <td className="py-3 px-4">
                       {student.gender === 'L' ? (
-                        <span className="text-blue-700 font-medium">Laki-laki</span>
+                        <span className="text-blue-700 dark:text-blue-400 font-medium">Laki-laki</span>
                       ) : (
-                        <span className="text-pink-700 font-medium">Perempuan</span>
+                        <span className="text-pink-700 dark:text-pink-400 font-medium">Perempuan</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       {student.rfid_uid ? (
                         <div className="flex items-center gap-1.5">
                           <CreditCard className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span className="font-mono font-bold text-slate-800 text-[11px] bg-slate-100 px-2 py-0.5 rounded-md">
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                             {student.rfid_uid}
                           </span>
                         </div>
@@ -343,7 +343,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                             setPairingStudent(student);
                             setCardPairingUid('');
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-semibold border border-amber-200 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-[11px] font-semibold border border-amber-200 dark:border-amber-800 transition-colors cursor-pointer"
                         >
                           <Radio className="w-3 h-3 animate-pulse" />
                           Hubungkan Kartu
@@ -352,9 +352,9 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                        student.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                        student.status === 'graduated' ? 'bg-blue-100 text-blue-800' :
-                        student.status === 'suspended' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
+                        student.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400' :
+                        student.status === 'graduated' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-400' :
+                        student.status === 'suspended' ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                       }`}>
                         {student.status.toUpperCase()}
                       </span>
@@ -365,7 +365,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                         <button
                           onClick={() => setViewingStudentQr(student)}
                           title="Lihat & Cetak Kartu QR Santri"
-                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors cursor-pointer"
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
@@ -373,7 +373,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                         <button
                           onClick={() => setSelectedDetailStudent(student)}
                           title="Lihat Detail"
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 transition-colors cursor-pointer"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -384,7 +384,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                             setCardPairingUid(student.rfid_uid || '');
                           }}
                           title="Ganti Kartu RFID"
-                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors cursor-pointer"
                         >
                           <CreditCard className="w-4 h-4" />
                         </button>
@@ -392,7 +392,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                         <button
                           onClick={() => handleOpenEdit(student)}
                           title="Edit Santri"
-                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors cursor-pointer"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
@@ -400,7 +400,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
                         <button
                           onClick={() => setDeletingId(student.id)}
                           title="Hapus Santri"
-                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -412,6 +412,111 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Student Cards List (Mobile Smartphone View) */}
+      <div className="sm:hidden space-y-3">
+        {filteredStudents.length === 0 ? (
+          <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 text-slate-400">
+            <User className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+            <p className="font-semibold text-sm">Tidak ada santri ditemukan</p>
+            <p className="text-xs text-slate-400 mt-1">Coba ubah kata kunci pencarian atau filter.</p>
+          </div>
+        ) : (
+          filteredStudents.map((student, idx) => (
+            <div 
+              key={`mobile-std-${student.id}-${idx}`}
+              className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3"
+            >
+              {/* Header Info */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {student.photo_url && student.photo_url.trim() !== '' ? (
+                    <img
+                      src={student.photo_url}
+                      alt={student.name}
+                      className="w-12 h-12 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 shrink-0">
+                      <User className="w-6 h-6" />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
+                      {student.name}
+                    </h4>
+                    <p className="font-mono text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      NIS: {student.nis}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 font-bold text-[10px] border border-indigo-100 dark:border-indigo-900">
+                        Kelas {student.class}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] ${
+                        student.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400' :
+                        student.status === 'graduated' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-400' :
+                        'bg-slate-100 dark:bg-slate-800 text-slate-600'
+                      }`}>
+                        {student.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RFID badge / pair button */}
+                {student.rfid_uid ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-mono font-bold text-[10px] border border-emerald-200 dark:border-emerald-800 shrink-0">
+                    <CreditCard className="w-3 h-3" />
+                    {student.rfid_uid.slice(-6)}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setPairingStudent(student);
+                      setCardPairingUid('');
+                    }}
+                    className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-semibold text-[10px] border border-amber-200 shrink-0"
+                  >
+                    + RFID
+                  </button>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setViewingStudentQr(student)}
+                  className="py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold text-[11px] flex items-center justify-center gap-1 border border-blue-200 dark:border-blue-800 active:scale-95 transition-transform"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  QR
+                </button>
+                <button
+                  onClick={() => setSelectedDetailStudent(student)}
+                  className="py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px] flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Detail
+                </button>
+                <button
+                  onClick={() => handleOpenEdit(student)}
+                  className="py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] flex items-center justify-center gap-1 border border-indigo-200 dark:border-indigo-800 active:scale-95 transition-transform"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => setDeletingId(student.id)}
+                  className="py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-semibold text-[11px] flex items-center justify-center gap-1 border border-rose-200 dark:border-rose-800 active:scale-95 transition-transform"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Hapus
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* MODAL: Tambah Santri */}
