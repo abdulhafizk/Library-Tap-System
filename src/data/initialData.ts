@@ -41,7 +41,8 @@ export const initialSettings: LibrarySettings = {
   capacity: 75,
   sound_enabled: true,
   dark_mode: false,
-  auto_reset_seconds: 4,
+  auto_reset_seconds: 5,
+  kiosk_tap_cooldown_seconds: 5,
   kiosk_mode_allowed: true,
   whatsapp: defaultWhatsAppConfig,
 };

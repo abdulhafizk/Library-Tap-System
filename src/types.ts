@@ -99,7 +99,8 @@ export interface LibrarySettings {
   capacity: number; // e.g. 60
   sound_enabled: boolean;
   dark_mode?: boolean;
-  auto_reset_seconds: number; // e.g. 4
+  auto_reset_seconds: number; // e.g. 5
+  kiosk_tap_cooldown_seconds?: number; // e.g. 5 (Delay interval between taps to prevent double tap)
   kiosk_mode_allowed: boolean;
   whatsapp?: WhatsAppNotificationConfig;
 }

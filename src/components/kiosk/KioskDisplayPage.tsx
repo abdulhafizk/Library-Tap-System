@@ -25,7 +25,10 @@ import {
   Zap,
   Info,
   Check,
-  User
+  User,
+  Timer,
+  Hourglass,
+  ShieldAlert
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLibrary } from '../../context/LibraryContext';
@@ -83,6 +86,7 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
     handleRfidTap, 
     currentTapResult, 
     clearCurrentTapResult,
+    isProcessingTap,
     activeVisitsCount,
     todayVisitsCount
   } = useLibrary();
@@ -95,6 +99,16 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
   const [showSimPanel, setShowSimPanel] = useState(false);
   const [lastTappedTime, setLastTappedTime] = useState<Date | null>(null);
 
+  // 5-Second Delay / Cooldown Configuration between Card Taps to prevent double taps
+  const tapCooldownSecs = Math.max(1, settings.kiosk_tap_cooldown_seconds ?? settings.auto_reset_seconds ?? 5);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [cooldownTotalSecs, setCooldownTotalSecs] = useState<number>(tapCooldownSecs);
+  const [cooldownNotice, setCooldownNotice] = useState<string | null>(null);
+  const cooldownUntilRef = useRef<number>(0);
+  const cooldownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownNoticeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isCoolingDown = cooldownRemaining > 0;
+
   // Web NFC State for Tablets/Smartphones with NFC
   const [isNfcSupported, setIsNfcSupported] = useState(false);
   const [isNfcScanning, setIsNfcScanning] = useState(false);
@@ -105,6 +119,30 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
   const keyBufferRef = useRef<string>('');
   const lastKeyTimeRef = useRef<number>(0);
   const autoDismissTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Dismiss popup and reset cooldown manually
+  const dismissTapResult = useCallback(() => {
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    if (autoDismissTimerRef.current) {
+      clearTimeout(autoDismissTimerRef.current);
+      autoDismissTimerRef.current = null;
+    }
+    setCooldownRemaining(0);
+    cooldownUntilRef.current = 0;
+    clearCurrentTapResult();
+  }, [clearCurrentTapResult]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+      if (cooldownNoticeTimerRef.current) clearTimeout(cooldownNoticeTimerRef.current);
+      if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
+    };
+  }, []);
 
   // Update Clock & Date Every Second
   useEffect(() => {
@@ -157,11 +195,55 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
   const maxCapacity = settings.capacity || 60;
   const occupancyPercent = Math.min(100, Math.round((activeVisitsCount / maxCapacity) * 100));
 
-  // Trigger Tap & handle popup animation + Confetti
+  // Trigger Tap & handle popup animation + Confetti + 5-second cooldown delay
   const triggerKioskTap = useCallback(async (uid: string) => {
     if (!uid) return;
+
+    const now = Date.now();
+    // Check if within 5-second cooldown or already processing another tap
+    if (now < cooldownUntilRef.current || isProcessingTap) {
+      const remainingSecs = Math.max(1, Math.ceil((cooldownUntilRef.current - now) / 1000));
+      if (settings.sound_enabled) {
+        soundManager.playErrorSound?.();
+      }
+      setCooldownNotice(`⏳ Jeda Pemindaian: Harap tunggu ${remainingSecs} detik untuk tap berikutnya.`);
+      if (cooldownNoticeTimerRef.current) clearTimeout(cooldownNoticeTimerRef.current);
+      cooldownNoticeTimerRef.current = setTimeout(() => {
+        setCooldownNotice(null);
+      }, 2200);
+      return;
+    }
+
+    const durationSecs = Math.max(1, settings.kiosk_tap_cooldown_seconds ?? settings.auto_reset_seconds ?? 5);
+    const cooldownMs = durationSecs * 1000;
+    cooldownUntilRef.current = now + cooldownMs;
+    setCooldownTotalSecs(durationSecs);
+    setCooldownRemaining(durationSecs);
     setLastTappedTime(new Date());
     setLastScannedTag(uid);
+
+    // Start 100ms smooth ticker for the countdown progress
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    let remainingMs = cooldownMs;
+    let lastTick = Date.now();
+
+    cooldownTimerRef.current = setInterval(() => {
+      const currentNow = Date.now();
+      const delta = currentNow - lastTick;
+      lastTick = currentNow;
+      remainingMs -= delta;
+      const currentSecs = Math.max(0, Math.ceil(remainingMs / 1000));
+      setCooldownRemaining(currentSecs);
+
+      if (remainingMs <= 0) {
+        if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+        setCooldownRemaining(0);
+        cooldownUntilRef.current = 0;
+        clearCurrentTapResult();
+      }
+    }, 100);
+
     const res = await handleRfidTap(uid);
 
     if (res.type === 'success_in') {
@@ -176,14 +258,7 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
         // ignore if canvas blocked
       }
     }
-
-    // Auto dismiss welcome popup after settings.auto_reset_seconds (default 5s)
-    if (autoDismissTimerRef.current) clearTimeout(autoDismissTimerRef.current);
-    const dismissDuration = (settings.auto_reset_seconds || 5) * 1000;
-    autoDismissTimerRef.current = setTimeout(() => {
-      clearCurrentTapResult();
-    }, dismissDuration);
-  }, [handleRfidTap, settings.auto_reset_seconds, clearCurrentTapResult]);
+  }, [handleRfidTap, settings.kiosk_tap_cooldown_seconds, settings.auto_reset_seconds, settings.sound_enabled, isProcessingTap, clearCurrentTapResult]);
 
   // Global Hardware USB RFID / Barcode Scanner Listener on Kiosk Screen (Zero-Click Required)
   useEffect(() => {
@@ -194,6 +269,12 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
       }
 
       const now = Date.now();
+      // If currently cooling down, ignore key buffer to prevent queued double taps
+      if (now < cooldownUntilRef.current) {
+        keyBufferRef.current = '';
+        return;
+      }
+
       // Hardware barcode/RFID scanners send characters in rapid bursts (< 45ms)
       if (now - lastKeyTimeRef.current > 120) {
         keyBufferRef.current = '';
@@ -238,6 +319,11 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
       setIsNfcScanning(true);
 
       ndef.addEventListener('reading', (event: any) => {
+        // Discard reading if within cooldown
+        if (Date.now() < cooldownUntilRef.current) {
+          return;
+        }
+
         let detectedUid = event.serialNumber || '';
         
         // Also check if message records contain text / ID
@@ -452,6 +538,16 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
         </div>
       </header>
 
+      {/* TRANSIENT COOLDOWN / NOTICE ALERT TOAST */}
+      {cooldownNotice && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="px-5 py-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-sm shadow-2xl flex items-center gap-2.5 border-2 border-amber-300">
+            <Hourglass className="w-5 h-5 animate-spin text-slate-950" />
+            <span>{cooldownNotice}</span>
+          </div>
+        </div>
+      )}
+
       {/* QUICK SIMULATION DRAWER (OPTIONAL DEMO TESTING WITHOUT PHYSICAL CARD) */}
       {showSimPanel && (
         <div className="relative z-20 bg-slate-900 border-b border-amber-900/50 p-4 sm:p-6 animate-in slide-in-from-top duration-200">
@@ -480,11 +576,15 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
                 return (
                   <button
                     key={s.id}
+                    disabled={isCoolingDown}
                     onClick={() => triggerKioskTap(s.rfid_uid || s.nis)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer ${
-                      isInside 
-                        ? 'bg-rose-950/60 text-rose-300 border-rose-800 hover:bg-rose-900' 
-                        : 'bg-emerald-950/60 text-emerald-300 border-emerald-800 hover:bg-emerald-900'
+                    title={isCoolingDown ? `Jeda pemindai aktif (${cooldownRemaining}s)` : `Tap ${s.name}`}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                      isCoolingDown 
+                        ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 border-slate-700' 
+                        : isInside 
+                          ? 'bg-rose-950/60 text-rose-300 border-rose-800 hover:bg-rose-900 cursor-pointer' 
+                          : 'bg-emerald-950/60 text-emerald-300 border-emerald-800 hover:bg-emerald-900 cursor-pointer'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-current"></span>
@@ -493,6 +593,12 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
                   </button>
                 );
               })}
+              {isCoolingDown && (
+                <span className="text-[11px] font-mono font-bold text-amber-400 px-2 py-1 rounded-lg bg-amber-950/60 border border-amber-800 flex items-center gap-1.5 animate-pulse">
+                  <Hourglass className="w-3.5 h-3.5 animate-spin" />
+                  <span>Jeda {cooldownRemaining}s</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -560,30 +666,65 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
             
             {/* Background Radar Rings Animation */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-              <div className="w-72 h-72 rounded-full border border-blue-500 animate-ping"></div>
-              <div className="w-96 h-96 rounded-full border border-emerald-500/40 animate-pulse"></div>
+              <div className={`w-72 h-72 rounded-full border ${isCoolingDown ? 'border-amber-500 animate-pulse' : 'border-blue-500 animate-ping'}`}></div>
+              <div className={`w-96 h-96 rounded-full border ${isCoolingDown ? 'border-amber-500/40' : 'border-emerald-500/40'} animate-pulse`}></div>
             </div>
 
-            {/* Tap Icon Target with Live Active Glow */}
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-2xl shadow-blue-500/30 ring-8 ring-blue-500/20 mb-5 relative">
-              <Radio className="w-12 h-12 sm:w-14 sm:h-14 animate-pulse" />
-              <div className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-1.5 shadow-md">
-                <CheckCircle2 className="w-4 h-4" />
+            {/* Tap Icon Target with Live Active Glow / Cooldown Counter */}
+            {isCoolingDown ? (
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-amber-600 via-orange-600 to-amber-500 flex flex-col items-center justify-center text-white shadow-2xl shadow-amber-500/30 ring-8 ring-amber-500/20 mb-5 relative animate-pulse">
+                <span className="text-3xl sm:text-4xl font-black font-mono leading-none">{cooldownRemaining}</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-100 mt-1">Detik Jeda</span>
+                <div className="absolute -top-2 -right-2 bg-amber-400 text-slate-950 rounded-full p-1.5 shadow-md">
+                  <Hourglass className="w-4 h-4 animate-spin" />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-2xl shadow-blue-500/30 ring-8 ring-blue-500/20 mb-5 relative">
+                <Radio className="w-12 h-12 sm:w-14 sm:h-14 animate-pulse" />
+                <div className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-1.5 shadow-md">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+            )}
 
-            {/* Live Sensor Status Pill */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-bold mb-3 shadow-inner">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span>Sensor Otomatis Aktif — Langsung Tempelkan Kartu</span>
-            </div>
+            {/* Live Sensor Status Pill with Cooldown Mode */}
+            {isCoolingDown ? (
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-950/80 border border-amber-500/50 text-amber-300 text-xs font-bold mb-3 shadow-inner">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span>⏳ Jeda Pemindaian ({cooldownRemaining}s) • Menyiapkan Pembacaan Berikutnya</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-bold mb-3 shadow-inner">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span>Sensor Otomatis Aktif — Langsung Tempelkan Kartu</span>
+              </div>
+            )}
 
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Tempelkan Kartu Santri di Sini
+              {isCoolingDown ? 'Mohon Tunggu Sebentar...' : 'Tempelkan Kartu Santri di Sini'}
             </h2>
             <p className="text-sm sm:text-base text-slate-300 max-w-lg mt-2 font-normal leading-relaxed">
-              Dekatkan kartu <strong className="text-white">RFID</strong>, kartu <strong className="text-white">NFC</strong>, atau scan <strong className="text-white">QR Code</strong> pada alat pemindai untuk presensi masuk & keluar otomatis.
+              {isCoolingDown ? (
+                <>
+                  Jeda <strong className="text-amber-300">{cooldownTotalSecs} detik</strong> diaktifkan untuk mencegah duplikasi tap. Pemindai otomatis siap kembali dalam <strong className="text-white font-mono">{cooldownRemaining} detik</strong>.
+                </>
+              ) : (
+                <>
+                  Dekatkan kartu <strong className="text-white">RFID</strong>, kartu <strong className="text-white">NFC</strong>, atau scan <strong className="text-white">QR Code</strong> pada alat pemindai untuk presensi masuk & keluar otomatis.
+                </>
+              )}
             </p>
+
+            {/* Cooldown Visual Progress Bar */}
+            {isCoolingDown && (
+              <div className="w-full max-w-xs mt-4 bg-slate-800/90 rounded-full h-2 p-0.5 overflow-hidden border border-amber-500/30">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-100 ease-linear"
+                  style={{ width: `${Math.max(0, Math.min(100, (1 - (cooldownRemaining / cooldownTotalSecs)) * 100))}%` }}
+                />
+              </div>
+            )}
 
             {/* Hardware & Web NFC Detection Badges */}
             <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
@@ -752,7 +893,7 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
       {/* FULL-SCREEN REALTIME TAP OVERLAY POPUP (TRIGGERS ON CARD TAP) */}
       {currentTapResult && (
         <div 
-          onClick={clearCurrentTapResult}
+          onClick={dismissTapResult}
           className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200 cursor-pointer"
         >
           <div 
@@ -765,13 +906,28 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
               currentTapResult.type === 'success_in' ? 'bg-emerald-500' : currentTapResult.type === 'success_out' ? 'bg-blue-500' : 'bg-rose-500'
             }`} />
             
-            {/* Close / Dismiss button */}
-            <button
-              onClick={clearCurrentTapResult}
-              className="absolute top-6 right-6 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
-            >
-              Tutup (ESC)
-            </button>
+            {/* Top Modal Bar with Cooldown Countdown & Dismiss button */}
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/90 border border-slate-700 text-xs font-mono font-bold text-amber-400 shadow-xs">
+                <Hourglass className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span>Siap tap berikutnya dalam {cooldownRemaining || 0}s</span>
+              </div>
+
+              <button
+                onClick={dismissTapResult}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors flex items-center gap-1 shadow-xs"
+              >
+                <span>Tutup Sekarang (ESC)</span>
+              </button>
+            </div>
+
+            {/* Countdown Progress Bar at top of popup */}
+            <div className="w-full bg-slate-800/80 rounded-full h-1.5 mb-6 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-100 ease-linear"
+                style={{ width: `${Math.max(0, Math.min(100, (1 - (cooldownRemaining / cooldownTotalSecs)) * 100))}%` }}
+              />
+            </div>
 
             {/* SUCCESS TAP IN */}
             {currentTapResult.type === 'success_in' && currentTapResult.student && (

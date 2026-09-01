@@ -39,6 +39,7 @@ import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from '../layout/Sidebar';
 import { Student } from '../../types';
 import { MonthlyReportModal } from '../visits/MonthlyReportModal';
+import { LibraryInsights } from './LibraryInsights';
 
 interface DashboardPageProps {
   onNavigate: (tab: NavTab) => void;
@@ -141,103 +142,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-5 max-w-7xl mx-auto">
-      {/* Top Banner Row: Kios TV, Sirkulasi Buku, & Penghargaan Santri */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-        {/* Banner Mode Kios Display TV */}
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white border border-slate-800 shadow-md flex flex-col justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0">
-              <Tv className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                Display Signage
-              </span>
-              <h3 className="text-sm font-black text-white mt-1">
-                Mode Kios Display TV
-              </h3>
-              <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">
-                Layar penuh Smart TV untuk presensi live tap & sambutan selamat datang.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('kiosk')}
-            className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-600/30 transition-all cursor-pointer"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-            <span>Buka Kios TV</span>
-          </button>
-        </div>
-
-        {/* Banner Sirkulasi Buku / Kitab */}
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-900 via-purple-950 to-slate-900 text-white border border-indigo-900/60 shadow-md flex flex-col justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-indigo-400 shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Modul Sirkulasi
-                </span>
-                {overdueLoansCount > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/30 text-rose-300 border border-rose-500/40">
-                    {overdueLoansCount} Terlambat
-                  </span>
-                )}
-              </div>
-              <h3 className="text-sm font-black text-white mt-1">
-                Sirkulasi & Peminjaman
-              </h3>
-              <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">
-                {activeLoansCount} buku dipinjam dari {totalTitlesCount} judul katalog kitab.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('circulation')}
-            className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Buka Sirkulasi</span>
-          </button>
-        </div>
-
-        {/* Banner Penghargaan & XP Santri */}
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-900 via-yellow-950 to-slate-900 text-white border border-amber-850 shadow-md flex flex-col justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/30 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Literacy Awards
-              </span>
-              <h3 className="text-sm font-black text-white mt-1">
-                Penghargaan & XP Santri
-              </h3>
-              <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">
-                Leaderboard pembaca terbaik, lencana prestasi & cetak piagam digital resmi.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('awards')}
-            className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/30 transition-all cursor-pointer"
-          >
-            <Trophy className="w-3.5 h-3.5" />
-            <span>Buka Peringkat & Piagam</span>
-          </button>
-        </div>
-      </div>
-
       {/* 4 Clean Metric Cards */}
       <div className="flex items-center justify-between pt-1">
         <h2 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2">
@@ -422,6 +326,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
         </div>
       </div>
+
+      {/* Library Insights: Hourly Peak Hours & Utilization Analytics */}
+      <LibraryInsights 
+        visits={visits} 
+        students={students} 
+        capacity={settings.capacity} 
+        onNavigate={onNavigate} 
+      />
 
       {/* Two Column Bottom: Riwayat Tap Terbaru & Sedang di Perpustakaan */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

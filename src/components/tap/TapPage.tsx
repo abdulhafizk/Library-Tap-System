@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Radio, 
   CheckCircle2, 
@@ -31,7 +32,13 @@ import {
   ScanLine,
   RefreshCw,
   Copy,
-  ExternalLink
+  ExternalLink,
+  BookOpen,
+  Award,
+  Calendar,
+  Trophy,
+  Flame,
+  Star
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import jsQR from 'jsqr';
@@ -465,15 +472,99 @@ export const TapPage: React.FC<TapPageProps> = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Multi-stage celebration confetti triggers for captivating visual feedback
+  const triggerCelebrationConfetti = useCallback((type: 'success_in' | 'success_out') => {
+    if (type === 'success_in') {
+      // Emerald, Gold, Mint, Cyan celebration
+      confetti({
+        particleCount: 80,
+        spread: 80,
+        origin: { y: 0.55 },
+        colors: ['#10b981', '#34d399', '#fbbf24', '#f59e0b', '#06b6d4', '#ffffff'],
+        ticks: 200,
+        gravity: 0.9,
+        scalar: 1.15,
+      });
+
+      // Side fireworks cannons after 150ms
+      setTimeout(() => {
+        confetti({
+          particleCount: 45,
+          angle: 60,
+          spread: 65,
+          origin: { x: 0.08, y: 0.65 },
+          colors: ['#10b981', '#34d399', '#fbbf24', '#38bdf8'],
+          ticks: 220,
+        });
+        confetti({
+          particleCount: 45,
+          angle: 120,
+          spread: 65,
+          origin: { x: 0.92, y: 0.65 },
+          colors: ['#10b981', '#34d399', '#fbbf24', '#38bdf8'],
+          ticks: 220,
+        });
+      }, 160);
+
+      // Star sparkles drift after 350ms
+      setTimeout(() => {
+        confetti({
+          particleCount: 30,
+          spread: 100,
+          origin: { y: 0.45 },
+          shapes: ['circle'],
+          colors: ['#fbbf24', '#f59e0b', '#34d399'],
+          scalar: 0.8,
+          gravity: 0.7
+        });
+      }, 350);
+    } else if (type === 'success_out') {
+      // Electric Blue, Sky, Purple & Gold celebration for check out
+      confetti({
+        particleCount: 90,
+        spread: 85,
+        origin: { y: 0.55 },
+        colors: ['#2563eb', '#38bdf8', '#8b5cf6', '#a855f7', '#fbbf24', '#ffffff'],
+        ticks: 220,
+        gravity: 0.9,
+        scalar: 1.15,
+      });
+
+      setTimeout(() => {
+        confetti({
+          particleCount: 50,
+          angle: 55,
+          spread: 70,
+          origin: { x: 0.05, y: 0.65 },
+          colors: ['#3b82f6', '#06b6d4', '#fbbf24', '#9333ea'],
+          ticks: 220,
+        });
+        confetti({
+          particleCount: 50,
+          angle: 125,
+          spread: 70,
+          origin: { x: 0.95, y: 0.65 },
+          colors: ['#3b82f6', '#06b6d4', '#fbbf24', '#9333ea'],
+          ticks: 220,
+        });
+      }, 160);
+    }
+  }, []);
+
+  // Time-of-day greeting helper (Pagi, Siang, Sore, Malam)
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 4 && hour < 11) return 'Selamat Pagi';
+    if (hour >= 11 && hour < 15) return 'Selamat Siang';
+    if (hour >= 15 && hour < 18) return 'Selamat Sore';
+    return 'Selamat Malam';
+  };
+
   // Handle countdown when result is displayed
   useEffect(() => {
     if (currentTapResult) {
-      if (currentTapResult.type === 'success_out') {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.6 }
-        });
+      if (currentTapResult.type === 'success_in' || currentTapResult.type === 'success_out') {
+        triggerCelebrationConfetti(currentTapResult.type);
       }
 
       setCountdown(settings.auto_reset_seconds || 4);
@@ -506,7 +597,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
         if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
       };
     }
-  }, [currentTapResult, settings.auto_reset_seconds, clearCurrentTapResult, isHoveringResult]);
+  }, [currentTapResult, settings.auto_reset_seconds, clearCurrentTapResult, isHoveringResult, triggerCelebrationConfetti]);
 
   const executeTap = async (uid: string) => {
     if (!uid.trim()) return;
@@ -1029,69 +1120,201 @@ export const TapPage: React.FC<TapPageProps> = () => {
             </div>
           )
         ) : (
-          /* ACTIVE RESULT CARD (MASUK / KELUAR / ERROR) */
-          <div className="w-full max-w-xl animate-in zoom-in-95 fade-in duration-300">
-            {/* SUCCESS CHECK-IN */}
+          /* ACTIVE RESULT CARD (MASUK / KELUAR / ERROR) WITH HIGH-END CELEBRATORY ANIMATIONS */
+          <motion.div 
+            key="active-tap-result"
+            initial={{ opacity: 0, scale: 0.86, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: -20 }}
+            transition={{ type: "spring", damping: 22, stiffness: 320 }}
+            className="w-full max-w-xl relative"
+          >
+            {/* SUCCESS CHECK-IN CELEBRATION */}
             {currentTapResult.type === 'success_in' && currentTapResult.student && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-sm border border-emerald-300 dark:border-emerald-700 text-center relative overflow-hidden">
-                {/* Progress bar countdown */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-emerald-400/90 dark:border-emerald-500/80 text-center relative overflow-hidden">
+                {/* Glowing Animated Radial Aura Behind Card */}
+                <div className="absolute -top-24 -left-24 w-64 h-64 bg-emerald-400/20 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none animate-pulse" />
+                <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-teal-400/20 dark:bg-teal-500/15 rounded-full blur-3xl pointer-events-none animate-pulse" />
+
+                {/* Progress bar countdown with glowing head */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-emerald-100 dark:bg-emerald-950/60">
                   <div 
-                    className="h-full bg-emerald-500 transition-all duration-200"
+                    className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 transition-all duration-150 shadow-[0_0_12px_rgba(16,185,129,0.8)]"
                     style={{ width: `${(countdown / (settings.auto_reset_seconds || 4)) * 100}%` }}
                   />
                 </div>
 
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider mb-3 border border-emerald-200 dark:border-emerald-800">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  Absensi Masuk Berhasil
+                {/* Floating Animated XP Reward Pill & Praise Tags */}
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.08 }}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 mb-3 border border-white/80"
+                >
+                  <Trophy className="w-4 h-4 text-amber-900 animate-bounce" />
+                  <span>+15 XP Kunjungan Tercatat!</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-900" />
+                </motion.div>
+
+                {/* Bouncing Animated Success Icon with Floating Starlets & Ripples */}
+                <div className="relative inline-flex items-center justify-center mb-4 mt-1">
+                  {/* Pulsing Concentric Ripple Rings */}
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.9 }}
+                    animate={{ scale: [1, 1.45, 1], opacity: [0.8, 0.1, 0.8] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 -m-4 rounded-full bg-emerald-400/30 dark:bg-emerald-500/25 blur-xs pointer-events-none"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.7 }}
+                    animate={{ scale: [1, 1.85, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                    className="absolute inset-0 -m-8 rounded-full border-2 border-emerald-400/40 dark:border-emerald-500/30 pointer-events-none"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.5 }}
+                    animate={{ scale: [1, 2.2, 1], opacity: [0.4, 0, 0.4] }}
+                    transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                    className="absolute inset-0 -m-12 rounded-full border border-teal-400/20 dark:border-teal-500/20 pointer-events-none"
+                  />
+
+                  {/* Main Center Bouncing Badge */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -90 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", damping: 12, stiffness: 280, delay: 0.05 }}
+                    className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40 border-4 border-white/90 dark:border-slate-800 relative z-10"
+                  >
+                    <CheckCircle2 className="w-11 h-11 sm:w-12 sm:h-12 drop-shadow-md stroke-[2.5]" />
+                  </motion.div>
+
+                  {/* Floating Decorative Sparkles & Badges */}
+                  <motion.div 
+                    animate={{ y: [-3, -10, -3], rotate: [0, 45, 0], scale: [1, 1.3, 1] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute -top-3 -right-5 text-amber-400 drop-shadow-md z-20"
+                  >
+                    <Sparkles className="w-7 h-7 fill-amber-300" />
+                  </motion.div>
+                  <motion.div 
+                    animate={{ y: [3, 9, 3], rotate: [0, -45, 0], scale: [1, 1.25, 1] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                    className="absolute -bottom-2 -left-5 text-emerald-400 drop-shadow-md z-20"
+                  >
+                    <Zap className="w-6 h-6 fill-emerald-300" />
+                  </motion.div>
+                  <motion.div 
+                    animate={{ x: [0, 4, 0], scale: [0.9, 1.15, 0.9] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    className="absolute top-1/2 -right-8 text-teal-400 z-20 hidden sm:block"
+                  >
+                    <Star className="w-5 h-5 fill-teal-300" />
+                  </motion.div>
                 </div>
 
-                {/* Sound effect indicator pill */}
-                {settings.sound_enabled && (
-                  <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <Volume2 className="w-3.5 h-3.5 animate-pulse" />
-                    <span>Umpan Balik Suara: Bip Masuk Berbunyi (Dual-Tone Chime)</span>
-                  </div>
-                )}
+                {/* Badge Header & Greeting with Sound Wave Bars */}
+                <div className="space-y-1.5 mb-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.12 }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs uppercase tracking-wider border border-emerald-200 dark:border-emerald-800 shadow-2xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Absensi Masuk Berhasil</span>
+                  </motion.div>
 
-                <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight mb-4">
-                  Selamat Datang!
-                </h2>
-
-                {/* Student Photo & Profile */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 mb-6 text-left">
-                  {currentTapResult.student.photo_url && currentTapResult.student.photo_url.trim() !== '' ? (
-                    <img
-                      src={currentTapResult.student.photo_url}
-                      alt={currentTapResult.student.name}
-                      className="w-16 h-16 rounded-xl object-cover ring-2 ring-emerald-500/20"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 ring-2 ring-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                      <User className="w-8 h-8" />
+                  {/* Sound equalizer animated bars */}
+                  {settings.sound_enabled && (
+                    <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Chime Notifikasi Masuk Aktif</span>
+                      <div className="flex items-center gap-0.5 h-3">
+                        <span className="w-1 h-3 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="w-1 h-2 bg-emerald-400 rounded-full animate-pulse delay-75" />
+                        <span className="w-1 h-3.5 bg-teal-400 rounded-full animate-pulse delay-150" />
+                        <span className="w-1 h-2 bg-emerald-500 rounded-full animate-pulse delay-100" />
+                      </div>
                     </div>
                   )}
-                  <div className="text-center sm:text-left">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+
+                  <motion.h2 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.18, type: "spring", stiffness: 300 }}
+                    className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight"
+                  >
+                    {getTimeGreeting()}, Ahlan wa Sahlan!
+                  </motion.h2>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                    Selamat datang dan selamat belajar di perpustakaan
+                  </p>
+
+                  {/* Floating praise badges */}
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap pt-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 text-[10px] font-bold">
+                      📚 Semangat Membaca
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-teal-100/80 dark:bg-teal-900/50 text-teal-800 dark:text-teal-200 text-[10px] font-bold">
+                      🌟 Santri Teladan
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100/80 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 text-[10px] font-bold">
+                      ⚡ Kehadiran Sah
+                    </span>
+                  </div>
+                </div>
+
+                {/* Student Photo & Profile Hero Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.22 }}
+                  className="flex flex-col sm:flex-row items-center justify-center gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50/50 dark:from-slate-800/90 dark:to-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/80 mb-5 text-left relative overflow-hidden shadow-xs"
+                >
+                  {/* Avatar with Animated Pulsing Ring */}
+                  <div className="relative shrink-0">
+                    <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 animate-pulse opacity-70 blur-xs" />
+                    {currentTapResult.student.photo_url && currentTapResult.student.photo_url.trim() !== '' ? (
+                      <img
+                        src={currentTapResult.student.photo_url}
+                        alt={currentTapResult.student.name}
+                        className="w-18 h-18 rounded-2xl object-cover ring-2 ring-white dark:ring-slate-800 relative z-10 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-18 h-18 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 ring-2 ring-white dark:ring-slate-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300 relative z-10 shadow-sm font-black text-xl">
+                        {currentTapResult.student.name ? currentTapResult.student.name.slice(0, 2).toUpperCase() : 'SN'}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-1 -right-1 z-20 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </div>
+                  </div>
+
+                  <div className="text-center sm:text-left min-w-0 flex-1">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white leading-snug truncate">
                       {currentTapResult.student.name}
                     </h3>
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 font-mono shadow-2xs">
                         NIS: {currentTapResult.student.nis}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800 text-xs font-bold">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 text-xs font-black">
                         Kelas {currentTapResult.student.class}
                       </span>
+                      {currentTapResult.student.rfid_uid && (
+                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                          UID: {currentTapResult.student.rfid_uid.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
-                {/* Check-in timestamp badge */}
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-semibold text-sm border border-emerald-100 dark:border-emerald-800/60 w-full sm:w-auto">
-                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Masuk: {currentTapResult.checkInTime}</span>
+                {/* Check-in timestamp badge with active pulse */}
+                <div className="flex items-center justify-center gap-2 mb-5">
+                  <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 font-bold text-sm border border-emerald-200 dark:border-emerald-800/80 shadow-2xs w-full sm:w-auto">
+                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
+                    <span>Waktu Masuk: {currentTapResult.checkInTime} WIB</span>
                   </div>
                 </div>
 
@@ -1099,7 +1322,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 <div 
                   onMouseEnter={() => setIsHoveringResult(true)}
                   onMouseLeave={() => setIsHoveringResult(false)}
-                  className="mb-6 p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/90 dark:border-emerald-800 text-left space-y-3"
+                  className="mb-5 p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/90 dark:border-emerald-800 text-left space-y-3"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -1134,7 +1357,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                         href={currentTapResult.whatsappParentDirectUrl || createWhatsAppDirectLink(currentTapResult.student.phone, currentTapResult.whatsappMessage || '')}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         <span>Kirim WA ke Santri / Wali ({currentTapResult.student.phone})</span>
@@ -1152,7 +1375,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                         href={currentTapResult.whatsappAdminDirectUrl || createWhatsAppDirectLink(settings.whatsapp.admin_phone, currentTapResult.whatsappMessage || '')}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                       >
                         <span>Ke Admin</span>
                         <ExternalLink className="w-3 h-3 opacity-80" />
@@ -1208,71 +1431,191 @@ export const TapPage: React.FC<TapPageProps> = () => {
               </div>
             )}
 
-            {/* SUCCESS CHECK-OUT */}
+            {/* SUCCESS CHECK-OUT CELEBRATION */}
             {currentTapResult.type === 'success_out' && currentTapResult.student && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-sm border border-blue-300 dark:border-blue-700 text-center relative overflow-hidden">
-                {/* Progress bar countdown */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-blue-400/90 dark:border-blue-500/80 text-center relative overflow-hidden">
+                {/* Glowing Animated Radial Aura Behind Card */}
+                <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-400/20 dark:bg-blue-500/15 rounded-full blur-3xl pointer-events-none animate-pulse" />
+                <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-indigo-400/20 dark:bg-indigo-500/15 rounded-full blur-3xl pointer-events-none animate-pulse" />
+
+                {/* Progress bar countdown with glowing head */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-blue-100 dark:bg-blue-950/60">
                   <div 
-                    className="h-full bg-blue-500 transition-all duration-200"
+                    className="h-full bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 transition-all duration-150 shadow-[0_0_12px_rgba(59,130,246,0.8)]"
                     style={{ width: `${(countdown / (settings.auto_reset_seconds || 4)) * 100}%` }}
                   />
                 </div>
 
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-bold text-xs uppercase tracking-wider mb-3 border border-blue-200 dark:border-blue-800">
-                  <ArrowRightCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  Absensi Keluar Berhasil
+                {/* Floating Animated XP Reward Pill & Farewell Tags */}
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.08 }}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 text-white font-black text-xs shadow-lg shadow-blue-500/25 mb-3 border border-white/80"
+                >
+                  <Flame className="w-4 h-4 text-amber-300 animate-bounce" />
+                  <span>+10 XP Kunjungan Selesai!</span>
+                  <Sparkles className="w-3.5 h-3.5 text-sky-200" />
+                </motion.div>
+
+                {/* Bouncing Animated Success Icon with Floating Starlets & Ripples */}
+                <div className="relative inline-flex items-center justify-center mb-4 mt-1">
+                  {/* Pulsing Concentric Ripple Rings */}
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.9 }}
+                    animate={{ scale: [1, 1.45, 1], opacity: [0.8, 0.1, 0.8] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute inset-0 -m-4 rounded-full bg-blue-400/30 dark:bg-blue-500/25 blur-xs pointer-events-none"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.7 }}
+                    animate={{ scale: [1, 1.85, 1], opacity: [0.6, 0, 0.6] }}
+                    transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                    className="absolute inset-0 -m-8 rounded-full border-2 border-blue-400/40 dark:border-blue-500/30 pointer-events-none"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.6, opacity: 0.5 }}
+                    animate={{ scale: [1, 2.2, 1], opacity: [0.4, 0, 0.4] }}
+                    transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                    className="absolute inset-0 -m-12 rounded-full border border-indigo-400/20 dark:border-indigo-500/20 pointer-events-none"
+                  />
+
+                  {/* Main Center Bouncing Badge */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -90 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", damping: 12, stiffness: 280, delay: 0.05 }}
+                    className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 text-white flex items-center justify-center shadow-xl shadow-blue-500/40 border-4 border-white/90 dark:border-slate-800 relative z-10"
+                  >
+                    <ArrowRightCircle className="w-11 h-11 sm:w-12 sm:h-12 drop-shadow-md stroke-[2.5]" />
+                  </motion.div>
+
+                  {/* Floating Decorative Sparkles & Badges */}
+                  <motion.div 
+                    animate={{ y: [-3, -10, -3], rotate: [0, 45, 0], scale: [1, 1.3, 1] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute -top-3 -right-5 text-amber-400 drop-shadow-sm z-20"
+                  >
+                    <Sparkles className="w-7 h-7 fill-amber-300" />
+                  </motion.div>
+                  <motion.div 
+                    animate={{ y: [3, 9, 3], rotate: [0, -45, 0], scale: [1, 1.25, 1] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                    className="absolute -bottom-2 -left-5 text-sky-400 drop-shadow-sm z-20"
+                  >
+                    <Award className="w-6 h-6" />
+                  </motion.div>
+                  <motion.div 
+                    animate={{ x: [0, 4, 0], scale: [0.9, 1.15, 0.9] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    className="absolute top-1/2 -right-8 text-indigo-400 z-20 hidden sm:block"
+                  >
+                    <Star className="w-5 h-5 fill-indigo-300" />
+                  </motion.div>
                 </div>
 
-                {/* Sound effect indicator pill */}
-                {settings.sound_enabled && (
-                  <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                    <Volume2 className="w-3.5 h-3.5 animate-pulse" />
-                    <span>Umpan Balik Suara: Bip Keluar Berbunyi (Harmoni Kunjungan)</span>
-                  </div>
-                )}
+                {/* Badge Header & Farewell with Sound Wave Bars */}
+                <div className="space-y-1.5 mb-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.12 }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-extrabold text-xs uppercase tracking-wider border border-blue-200 dark:border-blue-800 shadow-2xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Absensi Keluar Berhasil</span>
+                  </motion.div>
 
-                <h2 className="text-3xl font-bold text-blue-600 dark:text-blue-400 tracking-tight mb-4">
-                  Sampai Jumpa!
-                </h2>
-
-                {/* Student Photo & Profile */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-5 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 mb-6 text-left">
-                  {currentTapResult.student.photo_url && currentTapResult.student.photo_url.trim() !== '' ? (
-                    <img
-                      src={currentTapResult.student.photo_url}
-                      alt={currentTapResult.student.name}
-                      className="w-16 h-16 rounded-xl object-cover ring-2 ring-blue-500/20"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl bg-blue-100 dark:bg-blue-950/60 ring-2 ring-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                      <User className="w-8 h-8" />
+                  {/* Sound equalizer animated bars */}
+                  {settings.sound_enabled && (
+                    <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Chime Notifikasi Keluar Aktif</span>
+                      <div className="flex items-center gap-0.5 h-3">
+                        <span className="w-1 h-3 bg-blue-500 rounded-full animate-pulse" />
+                        <span className="w-1 h-2 bg-sky-400 rounded-full animate-pulse delay-75" />
+                        <span className="w-1 h-3.5 bg-indigo-400 rounded-full animate-pulse delay-150" />
+                        <span className="w-1 h-2 bg-blue-500 rounded-full animate-pulse delay-100" />
+                      </div>
                     </div>
                   )}
-                  <div className="text-center sm:text-left">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+
+                  <motion.h2 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.18, type: "spring", stiffness: 300 }}
+                    className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight"
+                  >
+                    Sampai Jumpa Lagi!
+                  </motion.h2>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                    Terima kasih telah berkunjung dan membaca di perpustakaan
+                  </p>
+
+                  {/* Floating praise badges */}
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap pt-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100/80 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-[10px] font-bold">
+                      📖 Kunjungan Tuntas
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-100/80 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold">
+                      🌟 Poin Literasi Masuk
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-sky-100/80 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 text-[10px] font-bold">
+                      ⚡ Syukron Santri Hebat
+                    </span>
+                  </div>
+                </div>
+
+                {/* Student Photo & Profile Hero Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.22 }}
+                  className="flex flex-col sm:flex-row items-center justify-center gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/50 dark:from-slate-800/90 dark:to-blue-950/20 border border-blue-200/80 dark:border-blue-800/80 mb-5 text-left relative overflow-hidden shadow-xs"
+                >
+                  {/* Avatar with Animated Pulsing Ring */}
+                  <div className="relative shrink-0">
+                    <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 animate-pulse opacity-70 blur-xs" />
+                    {currentTapResult.student.photo_url && currentTapResult.student.photo_url.trim() !== '' ? (
+                      <img
+                        src={currentTapResult.student.photo_url}
+                        alt={currentTapResult.student.name}
+                        className="w-18 h-18 rounded-2xl object-cover ring-2 ring-white dark:ring-slate-800 relative z-10 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-18 h-18 rounded-2xl bg-blue-100 dark:bg-blue-950/70 ring-2 ring-white dark:ring-slate-800 flex items-center justify-center text-blue-700 dark:text-blue-300 relative z-10 shadow-sm font-black text-xl">
+                        {currentTapResult.student.name ? currentTapResult.student.name.slice(0, 2).toUpperCase() : 'SN'}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-1 -right-1 z-20 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </div>
+                  </div>
+
+                  <div className="text-center sm:text-left min-w-0 flex-1">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white leading-snug truncate">
                       {currentTapResult.student.name}
                     </h3>
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1.5">
-                      <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 font-mono shadow-2xs">
                         NIS: {currentTapResult.student.nis}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 text-xs font-bold">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-blue-100/90 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 text-xs font-black">
                         Kelas {currentTapResult.student.class}
                       </span>
                     </div>
                   </div>
-                </div>
+                </motion.div>
 
-                {/* Stats row: Check out & Duration */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center">
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Waktu Keluar</p>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{currentTapResult.checkOutTime}</p>
+                {/* Stats row: Check out & Duration with High Contrast Badges */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center shadow-2xs">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Waktu Keluar</p>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100 mt-0.5 font-mono">{currentTapResult.checkOutTime} WIB</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-center">
-                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">Durasi Kunjungan</p>
-                    <p className="text-sm font-bold text-blue-800 dark:text-blue-300 mt-0.5">{currentTapResult.durationText}</p>
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 text-center shadow-2xs">
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 font-bold">Durasi Kunjungan</p>
+                    <p className="text-sm font-black text-blue-700 dark:text-blue-300 mt-0.5">{currentTapResult.durationText}</p>
                   </div>
                 </div>
 
@@ -1280,7 +1623,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 <div 
                   onMouseEnter={() => setIsHoveringResult(true)}
                   onMouseLeave={() => setIsHoveringResult(false)}
-                  className="mb-6 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/90 dark:border-blue-800 text-left space-y-3"
+                  className="mb-5 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/90 dark:border-blue-800 text-left space-y-3"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -1315,7 +1658,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                         href={currentTapResult.whatsappParentDirectUrl || createWhatsAppDirectLink(currentTapResult.student.phone, currentTapResult.whatsappMessage || '')}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         <span>Kirim WA ke Santri / Wali ({currentTapResult.student.phone})</span>
@@ -1333,7 +1676,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                         href={currentTapResult.whatsappAdminDirectUrl || createWhatsAppDirectLink(settings.whatsapp.admin_phone, currentTapResult.whatsappMessage || '')}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                       >
                         <span>Ke Admin</span>
                         <ExternalLink className="w-3 h-3 opacity-80" />
@@ -1391,16 +1734,20 @@ export const TapPage: React.FC<TapPageProps> = () => {
 
             {/* UNREGISTERED / ERROR STATE */}
             {currentTapResult.type === 'unregistered_card' && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-sm border border-rose-300 dark:border-rose-700 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800">
+              <motion.div 
+                initial={{ scale: 0.95 }}
+                animate={{ scale: [0.95, 1.02, 1] }}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-rose-300 dark:border-rose-700 text-center relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-2 bg-slate-100 dark:bg-slate-800">
                   <div 
-                    className="h-full bg-rose-500 transition-all duration-200"
+                    className="h-full bg-rose-500 transition-all duration-150"
                     style={{ width: `${(countdown / (settings.auto_reset_seconds || 4)) * 100}%` }}
                   />
                 </div>
 
-                <div className="w-14 h-14 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3 border border-rose-100 dark:border-rose-800">
-                  <XCircle className="w-8 h-8" />
+                <div className="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3 border border-rose-200 dark:border-rose-800 shadow-xs">
+                  <XCircle className="w-9 h-9" />
                 </div>
 
                 {/* Sound effect indicator pill */}
@@ -1411,7 +1758,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                   </div>
                 )}
 
-                <h2 className="text-2xl font-bold text-rose-600 dark:text-rose-400 tracking-tight mb-2">
+                <h2 className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight mb-2">
                   Kartu Tidak Terdaftar
                 </h2>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
@@ -1437,9 +1784,9 @@ export const TapPage: React.FC<TapPageProps> = () => {
                     <RotateCcw className="w-3 h-3" /> Coba Lagi ({countdown}s)
                   </button>
                 </div>
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
       </div>
 
