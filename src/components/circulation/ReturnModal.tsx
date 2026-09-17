@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertTriangle, BookCheck, ShieldCheck, DollarSign } from 'lucide-react';
 import { BookLoan, Book, Student } from '../../types';
 import { useLibrary } from '../../context/LibraryContext';
@@ -21,6 +21,22 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const [bookCondition, setBookCondition] = useState<'good' | 'minor_damage' | 'damaged' | 'lost'>('good');
   const [returnNotes, setReturnNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [customFine, setCustomFine] = useState<number>(0);
+  const [waiveFine, setWaiveFine] = useState<boolean>(false);
+
+  // Synchronize fine calculation and state whenever modal opens or loan changes
+  useEffect(() => {
+    if (isOpen && loan) {
+      const now = new Date();
+      const dueDate = new Date(loan.due_date);
+      const isOverdue = dueDate < now;
+      const daysOverdue = isOverdue ? Math.max(1, Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      setCustomFine(daysOverdue * 500);
+      setWaiveFine(false);
+      setBookCondition('good');
+      setReturnNotes('');
+    }
+  }, [isOpen, loan]);
 
   if (!isOpen || !loan) return null;
 
@@ -31,11 +47,6 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   const dueDate = new Date(loan.due_date);
   const isOverdue = dueDate < now;
   const daysOverdue = isOverdue ? Math.max(1, Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
-  
-  // Rp 500 / day default
-  const defaultFine = daysOverdue * 500;
-  const [customFine, setCustomFine] = useState<number>(defaultFine);
-  const [waiveFine, setWaiveFine] = useState<boolean>(false);
 
   const finalFine = waiveFine ? 0 : customFine;
 
@@ -56,33 +67,33 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh] cursor-default"
+        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] cursor-default"
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs">
-              <BookCheck className="w-5 h-5 text-white" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-white/20 backdrop-blur-xs">
+              <BookCheck className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">Konfirmasi Pengembalian Buku</h3>
-              <p className="text-xs text-emerald-100">Proses pengembalian kitab & cek denda/kondisi</p>
+              <h3 className="font-bold text-sm sm:text-base">Konfirmasi Pengembalian Buku</h3>
+              <p className="text-[11px] sm:text-xs text-emerald-100">Proses pengembalian kitab & cek denda/kondisi</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-4 text-slate-800 dark:text-slate-200 text-xs">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-3.5 sm:space-y-4 text-slate-800 dark:text-slate-200 text-xs">
           {/* Overview Info */}
           <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
@@ -193,11 +204,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            className="px-3.5 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors min-h-[40px] cursor-pointer"
           >
             Batal
           </button>
@@ -206,10 +217,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({
             onClick={handleConfirmReturn}
             disabled={isSubmitting}
             id="btn-submit-return"
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 transition-all cursor-pointer min-h-[40px] active:scale-95"
           >
             <CheckCircle className="w-4 h-4" />
-            {isSubmitting ? 'Menyimpan...' : 'Proses Selesai Dikembalikan'}
+            <span>{isSubmitting ? 'Menyimpan...' : 'Selesai Dikembalikan'}</span>
           </button>
         </div>
       </div>

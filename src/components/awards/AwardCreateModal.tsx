@@ -63,6 +63,10 @@ export const AwardCreateModal: React.FC<AwardCreateModalProps> = ({
 
       const newAward = addAward({
         student_id: selectedStudentId,
+        student_name: selectedStudent?.name,
+        student_nis: selectedStudent?.nis,
+        student_class: selectedStudent?.class,
+        student_photo_url: selectedStudent?.photo_url,
         title,
         period,
         category,

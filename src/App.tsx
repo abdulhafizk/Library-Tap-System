@@ -17,15 +17,53 @@ import { SettingsPage } from './components/settings/SettingsPage';
 import { KioskDisplayPage } from './components/kiosk/KioskDisplayPage';
 import { UsersPage } from './components/users/UsersPage';
 import { UserProfileModal } from './components/users/UserProfileModal';
+import { UpdateLogsPage } from './components/updates/UpdateLogsPage';
+import { SantriMenuPage } from './components/santri-menu/SantriMenuPage';
 import { LoginPage } from './components/auth/LoginPage';
+import { SantriDashboard } from './components/santri/SantriDashboard';
 import { IdleSessionPrompt } from './components/auth/IdleSessionPrompt';
 import { useIdleSessionTimer } from './hooks/useIdleSessionTimer';
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import { CommandPaletteModal } from './components/common/CommandPaletteModal';
+import { KeyboardShortcutsModal } from './components/common/KeyboardShortcutsModal';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
 
 function AppContent() {
-  const { isAuthenticated, currentUser } = useLibrary();
+  const { 
+    isAuthenticated, 
+    currentUser, 
+    toggleDarkMode, 
+    settings, 
+    updateSettings, 
+    openWhatsAppModal 
+  } = useLibrary();
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+
+  // Global Keyboard Shortcuts (Ctrl+K, Ctrl+B, Alt+1..9, Esc, ?, etc.)
+  useGlobalShortcuts({
+    onNavigate: (tab) => {
+      setCurrentTab(tab);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    onOpenSearch: () => setIsCommandPaletteOpen(true),
+    onOpenShortcutsModal: () => setIsShortcutsModalOpen(true),
+    onCloseModals: () => {
+      setIsCommandPaletteOpen(false);
+      setIsShortcutsModalOpen(false);
+      setIsProfileModalOpen(false);
+      setIsMobileSidebarOpen(false);
+    },
+    onToggleDarkMode: toggleDarkMode,
+    onToggleSound: () => updateSettings({ sound_enabled: !settings.sound_enabled }),
+    onOpenWhatsApp: openWhatsAppModal,
+    onOpenProfile: () => setIsProfileModalOpen(true),
+    isSearchOpen: isCommandPaletteOpen,
+    isShortcutsModalOpen: isShortcutsModalOpen,
+  });
 
   // Idle session timer for automatic logout at 60 minutes with warning at 50 minutes
   const {
@@ -40,6 +78,11 @@ function AppContent() {
     return <LoginPage />;
   }
 
+  // If logged in as Santri, display dedicated Santri Dashboard
+  if (currentUser.role === 'SANTRI') {
+    return <SantriDashboard />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans antialiased selection:bg-blue-600 selection:text-white transition-colors duration-200">
       {/* Sidebar Navigation */}
@@ -52,6 +95,7 @@ function AppContent() {
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -64,6 +108,8 @@ function AppContent() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenSearch={() => setIsCommandPaletteOpen(true)}
+          onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
         />
 
         {/* Page Content with Motion Page Transition */}
@@ -87,7 +133,9 @@ function AppContent() {
               {currentTab === 'visits' && <VisitsPage />}
               {currentTab === 'live' && <LiveRoomPage />}
               {currentTab === 'stats' && <StatsPage />}
+              {currentTab === 'santri_menu' && <SantriMenuPage />}
               {currentTab === 'users' && <UsersPage />}
+              {currentTab === 'updates' && <UpdateLogsPage />}
               {currentTab === 'settings' && <SettingsPage />}
             </motion.div>
           </AnimatePresence>
@@ -110,6 +158,40 @@ function AppContent() {
         onClose={() => setIsProfileModalOpen(false)}
       />
 
+      {/* Global Command Palette Search Modal (Ctrl+K / Cmd+K) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenShortcutsModal={() => {
+          setIsCommandPaletteOpen(false);
+          setIsShortcutsModalOpen(true);
+        }}
+        onToggleDarkMode={toggleDarkMode}
+        onToggleSound={() => updateSettings({ sound_enabled: !settings.sound_enabled })}
+        onOpenWhatsApp={openWhatsAppModal}
+      />
+
+      {/* Keyboard Shortcuts Cheat Sheet Modal (Ctrl+/ or ?) */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+        onNavigate={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenSearch={() => {
+          setIsShortcutsModalOpen(false);
+          setIsCommandPaletteOpen(true);
+        }}
+        onToggleDarkMode={toggleDarkMode}
+        onToggleSound={() => updateSettings({ sound_enabled: !settings.sound_enabled })}
+        onOpenWhatsApp={openWhatsAppModal}
+      />
+
       {/* Idle Session Warning Prompt Modal (50 min warning / 60 min auto logout) */}
       <IdleSessionPrompt
         isOpen={isWarningOpen}
@@ -117,6 +199,9 @@ function AppContent() {
         onExtendSession={extendSession}
         onLogout={logoutNow}
       />
+
+      {/* Real-time Network Offline / Online Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

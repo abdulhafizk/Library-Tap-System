@@ -28,11 +28,14 @@ import {
   User,
   Timer,
   Hourglass,
-  ShieldAlert
+  ShieldAlert,
+  WifiOff,
+  Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLibrary } from '../../context/LibraryContext';
 import { soundManager } from '../../utils/audio';
+import { OfflineQueueModal } from '../common/OfflineQueueModal';
 
 // Koleksi Mahfuzhat & Mutiara Hikmah Menuntut Ilmu untuk Pesantren
 const ISLAMIC_QUOTES = [
@@ -88,9 +91,12 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
     clearCurrentTapResult,
     isProcessingTap,
     activeVisitsCount,
-    todayVisitsCount
+    todayVisitsCount,
+    offlineQueueCount,
+    isOnline
   } = useLibrary();
 
+  const [showOfflineQueueModal, setShowOfflineQueueModal] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -502,6 +508,24 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
 
           {/* Kiosk Controls: Fullscreen & Sound & Demo Simulation Toggle */}
           <div className="flex items-center gap-2">
+            {/* Offline Queue Status Pill (when offline or queue has items) */}
+            {(offlineQueueCount > 0 || !isOnline) && (
+              <button
+                onClick={() => setShowOfflineQueueModal(true)}
+                title="Antrean RFID Offline: Klik untuk rincian & sinkronisasi"
+                className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  !isOnline
+                    ? 'bg-amber-950/80 border-amber-600/90 text-amber-300 animate-pulse'
+                    : 'bg-blue-950/80 border-blue-600/90 text-blue-300'
+                }`}
+              >
+                {!isOnline ? <WifiOff className="w-4 h-4 text-amber-400" /> : <Database className="w-4 h-4 text-blue-400" />}
+                <span className="hidden sm:inline">
+                  {offlineQueueCount > 0 ? `${offlineQueueCount} Antrean` : 'Offline'}
+                </span>
+              </button>
+            )}
+
             <button
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Keluar Layar Penuh (ESC)' : 'Layar Penuh Display TV'}
@@ -979,6 +1003,13 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
                   </div>
                 )}
 
+                {currentTapResult.isOfflineQueued && (
+                  <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 bg-amber-950/60 px-4 py-2 rounded-xl border border-amber-800/80">
+                    <Database className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Tersimpan di Antrean Offline ({currentTapResult.offlineQueueCount || 1} tap menunggu sinkronisasi)</span>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-400 italic">
                   "Selamat membaca dan menambah ilmu. Layar akan tertutup otomatis dalam beberapa detik."
                 </p>
@@ -1028,6 +1059,13 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
                   </div>
                 </div>
 
+                {currentTapResult.isOfflineQueued && (
+                  <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 bg-amber-950/60 px-4 py-2 rounded-xl border border-amber-800/80">
+                    <Database className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Tersimpan di Antrean Offline ({currentTapResult.offlineQueueCount || 1} tap menunggu sinkronisasi)</span>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-400 italic">
                   "Jazaakumullah khairan. Terima kasih telah menjaga ketertiban perpustakaan."
                 </p>
@@ -1051,6 +1089,14 @@ export const KioskDisplayPage: React.FC<KioskDisplayPageProps> = ({ onExitKiosk 
             )}
           </div>
         </div>
+      )}
+
+      {/* Offline RFID Queue Management Modal */}
+      {showOfflineQueueModal && (
+        <OfflineQueueModal
+          isOpen={showOfflineQueueModal}
+          onClose={() => setShowOfflineQueueModal(false)}
+        />
       )}
     </div>
   );

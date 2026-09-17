@@ -16,7 +16,8 @@ import {
   Sparkles,
   QrCode,
   Printer,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, Gender, StudentStatus } from '../../types';
@@ -24,6 +25,7 @@ import { exportStudentsToExcel } from '../../utils/exportExcel';
 import { QrCardGeneratorModal } from '../cards/QrCardGeneratorModal';
 import { QrCardViewModal } from '../cards/QrCardViewModal';
 import { ImageUpload } from '../common/ImageUpload';
+import { RfidMappingModal } from './RfidMappingModal';
 
 interface StudentsPageProps {
   onOpenDetail?: (student: Student) => void;
@@ -49,11 +51,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isQrGeneratorModalOpen, setIsQrGeneratorModalOpen] = useState(false);
+  const [isRfidMappingModalOpen, setIsRfidMappingModalOpen] = useState(false);
+  const [rfidMappingOnlyUnmapped, setRfidMappingOnlyUnmapped] = useState(false);
   const [viewingStudentQr, setViewingStudentQr] = useState<Student | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [pairingStudent, setPairingStudent] = useState<Student | null>(null);
   const [selectedDetailStudent, setSelectedDetailStudent] = useState<Student | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -86,6 +91,8 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
     return matchesSearch && matchesClass && matchesGender && matchesStatus;
   });
 
+  const unmappedStudentsCount = students.filter(s => !s.rfid_uid || s.rfid_uid.trim() === '').length;
+
   const handleOpenAdd = () => {
     setFormData({
       nis: `202407${String(students.length + 1).padStart(3, '0')}`,
@@ -114,40 +121,48 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
     });
   };
 
-  const handleSubmitAdd = (e: React.FormEvent) => {
+  const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.nis.trim()) return;
+    if (!formData.name.trim() || !formData.nis.trim() || isSubmitting) return;
 
-    addStudent({
-      nis: formData.nis.trim(),
-      name: formData.name.trim(),
-      class: formData.class,
-      gender: formData.gender,
-      photo_url: formData.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-      rfid_uid: formData.rfid_uid.trim() || undefined,
-      status: formData.status,
-      phone: formData.phone.trim() || undefined
-    });
-
-    setIsAddModalOpen(false);
+    setIsSubmitting(true);
+    try {
+      await addStudent({
+        nis: formData.nis.trim(),
+        name: formData.name.trim(),
+        class: formData.class,
+        gender: formData.gender,
+        photo_url: formData.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+        rfid_uid: formData.rfid_uid.trim() || undefined,
+        status: formData.status,
+        phone: formData.phone.trim() || undefined
+      });
+      setIsAddModalOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSubmitEdit = (e: React.FormEvent) => {
+  const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingStudent || !formData.name.trim() || !formData.nis.trim()) return;
+    if (!editingStudent || !formData.name.trim() || !formData.nis.trim() || isSubmitting) return;
 
-    updateStudent(editingStudent.id, {
-      nis: formData.nis.trim(),
-      name: formData.name.trim(),
-      class: formData.class,
-      gender: formData.gender,
-      photo_url: formData.photo_url,
-      rfid_uid: formData.rfid_uid.trim() || undefined,
-      status: formData.status,
-      phone: formData.phone.trim() || undefined
-    });
-
-    setEditingStudent(null);
+    setIsSubmitting(true);
+    try {
+      await updateStudent(editingStudent.id, {
+        nis: formData.nis.trim(),
+        name: formData.name.trim(),
+        class: formData.class,
+        gender: formData.gender,
+        photo_url: formData.photo_url,
+        rfid_uid: formData.rfid_uid.trim() || undefined,
+        status: formData.status,
+        phone: formData.phone.trim() || undefined
+      });
+      setEditingStudent(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePairCard = (e: React.FormEvent) => {
@@ -172,7 +187,24 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            id="btn-rfid-bulk-mapping"
+            onClick={() => {
+              setRfidMappingOnlyUnmapped(false);
+              setIsRfidMappingModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer"
+          >
+            <Radio className="w-4 h-4 text-emerald-200 animate-pulse" />
+            <span>Pemetaan RFID</span>
+            {unmappedStudentsCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold">
+                {unmappedStudentsCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setIsQrGeneratorModalOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs hover:shadow-md transition-all cursor-pointer"
@@ -199,6 +231,36 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
           </button>
         </div>
       </div>
+
+      {/* Unmapped Students Quick Reminder Banner */}
+      {unmappedStudentsCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm">
+                Terdapat {unmappedStudentsCount} Santri Belum Memiliki Kartu RFID Absensi
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Hubungkan kartu fisik secara berurutan dengan scanner USB, ketik massal, atau salin data dari Excel/CSV.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setRfidMappingOnlyUnmapped(true);
+              setIsRfidMappingModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+          >
+            <Radio className="w-4 h-4" />
+            <span>Mulai Pemetaan Kartu ({unmappedStudentsCount})</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
@@ -617,16 +679,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer flex items-center gap-2 disabled:opacity-60"
                 >
-                  Simpan Santri
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting ? 'Menyimpan ke Cloud...' : 'Simpan Santri'}
                 </button>
               </div>
             </form>
@@ -739,16 +804,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setEditingStudent(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold cursor-pointer flex items-center gap-2 disabled:opacity-60"
                 >
-                  Simpan Perubahan
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting ? 'Menyimpan ke Cloud...' : 'Simpan Perubahan'}
                 </button>
               </div>
             </form>
@@ -979,6 +1047,14 @@ export const StudentsPage: React.FC<StudentsPageProps> = () => {
           student={viewingStudentQr}
         />
       )}
+
+      {/* MODAL: Bulk RFID Mapping Tool */}
+      <RfidMappingModal
+        isOpen={isRfidMappingModalOpen}
+        onClose={() => setIsRfidMappingModalOpen(false)}
+        initialClassFilter={selectedClass}
+        initialOnlyUnmapped={rfidMappingOnlyUnmapped}
+      />
     </div>
   );
 };

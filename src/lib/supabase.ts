@@ -1,10 +1,50 @@
 import { createClient, SupabaseClient, User as SupabaseAuthUser } from '@supabase/supabase-js';
-import { AppUser } from '../types';
+import { AppUser, UserRole } from '../types';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://wucnvwjkbvrsghkdumbh.supabase.co';
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1Y252d2prYnZyc2doa2R1bWJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NjMyODAsImV4cCI6MjEwMzIzOTI4MH0.DpQmbwqeP0gUH4gb4_pwwIOBP1HcQWhg81LP-iwTdN8';
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+let preferProxy = false;
+
+/**
+ * Robust fetch wrapper that gracefully handles browser iframe cross-origin restrictions,
+ * adblockers, or CORS issues by routing through the Vite dev proxy if direct fetch fails.
+ */
+const smartFetch: typeof fetch = async (input, init) => {
+  const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : (input as Request).url);
+
+  // If targeting Supabase endpoint in a browser environment
+  if (typeof window !== 'undefined' && url.startsWith(SUPABASE_URL)) {
+    // If previous direct requests failed, prefer the local same-origin proxy
+    if (preferProxy) {
+      const proxyUrl = url.replace(SUPABASE_URL, '/supabase-proxy');
+      try {
+        return await fetch(proxyUrl, init);
+      } catch {
+        // Fallback to direct fetch
+        return await fetch(input, init);
+      }
+    }
+
+    try {
+      return await fetch(input, init);
+    } catch (err: any) {
+      // If direct fetch threw TypeError: Failed to fetch (browser blocked third-party origin or CORS issue in iframe)
+      const proxyUrl = url.replace(SUPABASE_URL, '/supabase-proxy');
+      try {
+        const proxyResp = await fetch(proxyUrl, init);
+        preferProxy = true; // Use proxy for subsequent calls for speed and reliability
+        return proxyResp;
+      } catch {
+        throw err;
+      }
+    }
+  }
+
+  return fetch(input, init);
+};
 
 /**
  * Supabase client instance initialized with project credentials.
@@ -17,6 +57,9 @@ export const supabase: SupabaseClient = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+    },
+    global: {
+      fetch: smartFetch,
     },
   }
 );
@@ -164,7 +207,7 @@ export async function signUpWithSupabase(
   profileData?: {
     name?: string;
     username?: string;
-    role?: 'admin' | 'staff';
+    role?: UserRole;
     phone?: string;
   }
 ): Promise<{ success: boolean; message: string; user?: AppUser; error?: string }> {

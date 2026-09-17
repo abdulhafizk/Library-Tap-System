@@ -212,33 +212,33 @@ export const LoanModal: React.FC<LoanModalProps> = ({
     <>
       <div 
         onClick={onClose}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
+        className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
       >
         <div 
           onClick={(e) => e.stopPropagation()}
           className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] cursor-default"
         >
           {/* Modal Header */}
-          <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs">
-                <BookOpen className="w-5 h-5 text-white" />
+          <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-xl bg-white/20 backdrop-blur-xs">
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-base">Form Transaksi Peminjaman Buku</h3>
-                <p className="text-xs text-blue-100">Catat peminjaman kitab/buku untuk santri perpustakaan</p>
+                <h3 className="font-bold text-sm sm:text-base">Form Transaksi Peminjaman Buku</h3>
+                <p className="text-[11px] sm:text-xs text-blue-100">Catat peminjaman kitab/buku untuk santri perpustakaan</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Modal Body */}
-          <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800 dark:text-slate-200">
+          <form onSubmit={handleSubmit} className="p-3.5 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 flex-1 text-slate-800 dark:text-slate-200">
             {errorMsg && (
               <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -498,11 +498,11 @@ export const LoanModal: React.FC<LoanModalProps> = ({
           </form>
 
           {/* Modal Footer */}
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+              className="px-3.5 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors min-h-[40px] cursor-pointer"
             >
               Batal
             </button>
@@ -511,7 +511,7 @@ export const LoanModal: React.FC<LoanModalProps> = ({
               onClick={handleSubmit}
               disabled={!selectedStudentId || !selectedBookId || isSubmitting}
               id="btn-confirm-loan"
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer min-h-[40px] active:scale-95"
             >
               {isSubmitting ? 'Memproses...' : 'Konfirmasi Peminjaman'}
             </button>

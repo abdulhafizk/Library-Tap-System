@@ -62,7 +62,7 @@ export const UsersPage: React.FC = () => {
   } = useLibrary();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff' | 'SANTRI'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isManualSyncing, setIsManualSyncing] = useState(false);
 
@@ -126,6 +126,7 @@ export const UsersPage: React.FC = () => {
   const totalUsers = users.length;
   const adminCount = users.filter(u => u.role === 'admin').length;
   const staffCount = users.filter(u => u.role === 'staff').length;
+  const santriCount = users.filter(u => u.role === 'SANTRI').length;
   const activeCount = users.filter(u => u.status === 'active').length;
 
   const isAdmin = currentUser?.role === 'admin';
@@ -338,7 +339,7 @@ export const UsersPage: React.FC = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-800/80">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-6 border-t border-slate-800/80">
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 backdrop-blur-sm">
             <span className="text-xs text-slate-400 font-medium">Total Akun</span>
             <div className="text-xl font-bold text-white mt-0.5">{totalUsers}</div>
@@ -352,8 +353,12 @@ export const UsersPage: React.FC = () => {
             <div className="text-xl font-bold text-emerald-300 mt-0.5">{staffCount}</div>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 backdrop-blur-sm">
-            <span className="text-xs text-teal-300/80 font-medium">Akun Aktif</span>
-            <div className="text-xl font-bold text-teal-300 mt-0.5">{activeCount}</div>
+            <span className="text-xs text-teal-300/80 font-medium">Akun Santri</span>
+            <div className="text-xl font-bold text-teal-300 mt-0.5">{santriCount}</div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 backdrop-blur-sm">
+            <span className="text-xs text-blue-300/80 font-medium">Akun Aktif</span>
+            <div className="text-xl font-bold text-blue-300 mt-0.5">{activeCount}</div>
           </div>
         </div>
       </div>
@@ -391,10 +396,10 @@ export const UsersPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex-wrap">
               <button
                 onClick={() => setRoleFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   roleFilter === 'all'
                     ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -404,7 +409,7 @@ export const UsersPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setRoleFilter('admin')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   roleFilter === 'admin'
                     ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -414,13 +419,23 @@ export const UsersPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setRoleFilter('staff')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   roleFilter === 'staff'
                     ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Staff ({staffCount})
+              </button>
+              <button
+                onClick={() => setRoleFilter('SANTRI')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  roleFilter === 'SANTRI'
+                    ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Santri ({santriCount})
               </button>
             </div>
 
@@ -459,6 +474,10 @@ export const UsersPage: React.FC = () => {
                       {user.role === 'admin' ? (
                         <span className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold flex items-center gap-1">
                           👑 Administrator
+                        </span>
+                      ) : user.role === 'SANTRI' ? (
+                        <span className="px-2.5 py-1 rounded-full bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-800 text-[11px] font-bold flex items-center gap-1">
+                          🎓 Santri
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[11px] font-semibold flex items-center gap-1">

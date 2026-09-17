@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Menu, 
@@ -26,20 +26,35 @@ import {
   Zap,
   Activity,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Keyboard,
+  WifiOff,
+  Download
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from './Sidebar';
 import { WhatsAppManagerModal } from '../settings/WhatsAppManagerModal';
+import { OfflineQueueModal } from '../common/OfflineQueueModal';
+import { PWAInstallButton } from '../common/PWAInstallButton';
+import { PWAInstallModal } from '../common/PWAInstallModal';
 import { testSupabaseConnection, isSupabaseConfigured } from '../../lib/supabase';
+import { generateAdminAlerts } from '../../utils/adminNotificationUtils';
 
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
   onNavigate: (tab: NavTab) => void;
   onOpenProfile?: () => void;
+  onOpenSearch?: () => void;
+  onOpenShortcutsModal?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate, onOpenProfile }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onOpenMobileSidebar, 
+  onNavigate, 
+  onOpenProfile,
+  onOpenSearch,
+  onOpenShortcutsModal
+}) => {
   const { 
     settings, 
     updateSettings, 
@@ -52,6 +67,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
     clearNotifications,
     students,
     cards,
+    loans,
+    books,
+    wishlists,
+    visits,
+    lastUnregisteredCardUid,
+    lastUnregisteredTimestamp,
     whatsappLogs,
     isWhatsAppModalOpen,
     openWhatsAppModal,
@@ -59,9 +80,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
     isRealtimeConnected,
     isSupabaseSyncing,
     lastRealtimeSync,
-    pullFromSupabase
+    pullFromSupabase,
+    offlineQueueCount,
+    isOnline
   } = useLibrary();
 
+  const [showOfflineQueueModal, setShowOfflineQueueModal] = useState(false);
+  const [showPwaInstallModal, setShowPwaInstallModal] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -153,6 +178,35 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
   const unreadNotifs = notifications.filter(n => !n.read);
 
+  // Compute live admin real-time alerts
+  const adminAlerts = useMemo(() => {
+    return generateAdminAlerts({
+      loans: loans || [],
+      books: books || [],
+      students: students || [],
+      wishlists: wishlists || [],
+      visits: visits || [],
+      settings,
+      isRealtimeConnected,
+      isSupabaseConfigured,
+      lastUnregisteredCardUid,
+      lastUnregisteredTimestamp,
+    });
+  }, [
+    loans,
+    books,
+    students,
+    wishlists,
+    visits,
+    settings,
+    isRealtimeConnected,
+    lastUnregisteredCardUid,
+    lastUnregisteredTimestamp,
+  ]);
+
+  const unreadAlertsCount = adminAlerts.filter(a => !a.read).length;
+  const totalUnreadCount = unreadNotifs.length + unreadAlertsCount;
+
   // Search Results
   const filteredStudents = searchQuery.trim() ? students.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -182,15 +236,25 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
           </button>
 
           {/* Desktop & Tablet Search Input */}
-          <div className="relative w-full max-w-sm hidden sm:block">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          <div 
+            onClick={() => {
+              if (onOpenSearch) onOpenSearch();
+              else setShowSearchModal(true);
+            }}
+            className="relative w-full max-w-sm hidden sm:flex items-center cursor-pointer group"
+          >
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors" />
             <input
               type="text"
-              onClick={() => setShowSearchModal(true)}
-              placeholder="Cari santri atau NIS..."
+              placeholder="Cari santri, buku, atau perintah..."
               readOnly
-              className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+              className="w-full pl-10 pr-16 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-750 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 rounded-full text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden transition-all cursor-pointer"
             />
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded-md bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 shadow-2xs">
+                Ctrl+K
+              </kbd>
+            </div>
           </div>
 
           {/* Mobile Display: Tulisan Perpustakaan ... */}
@@ -203,6 +267,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
 
         {/* Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Mobile Quick Search Button */}
+          <button
+            onClick={() => {
+              if (onOpenSearch) onOpenSearch();
+              else setShowSearchModal(true);
+            }}
+            className="sm:hidden p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 cursor-pointer"
+            title="Cari Santri / Buku (Ctrl+K)"
+          >
+            <Search className="w-4 h-4" />
+          </button>
           {/* Small Visual Supabase Connection Status Indicator (Desktop/Tablet) */}
           <button
             id="btn-header-supabase-health"
@@ -247,6 +322,29 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             </div>
           </button>
 
+          {/* Offline RFID Queue Status Button (Shows when queue has items or when offline) */}
+          {(offlineQueueCount > 0 || !isOnline) && (
+            <button
+              id="btn-header-offline-queue"
+              onClick={() => setShowOfflineQueueModal(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                !isOnline
+                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 animate-pulse'
+                  : 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
+              }`}
+              title="Antrean Tap RFID Offline: Klik untuk melihat detail & sinkronisasi"
+            >
+              {!isOnline ? (
+                <WifiOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              ) : (
+                <Database className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              )}
+              <span className="text-[11px] font-bold">
+                {offlineQueueCount > 0 ? `${offlineQueueCount} Tap Offline` : 'Mode Offline'}
+              </span>
+            </button>
+          )}
+
           {/* Live Clock Widget (Desktop/Tablet) */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -278,6 +376,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             <span>Display TV</span>
           </button>
 
+          {/* PWA Download / Install Button */}
+          <PWAInstallButton variant="compact" className="hidden sm:inline-flex" />
+
           {/* Dark Mode Quick Toggle (Desktop/Tablet) */}
           <button
             id="btn-header-dark-mode"
@@ -297,7 +398,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
           <button
             id="btn-toggle-sound"
             onClick={() => updateSettings({ sound_enabled: !settings.sound_enabled })}
-            title={settings.sound_enabled ? 'Suara Aktif' : 'Suara Dimatikan'}
+            title={settings.sound_enabled ? 'Suara Aktif' : 'Suara Dimatikan (Alt+V)'}
             className={`hidden lg:flex w-9 h-9 items-center justify-center rounded-lg border transition-colors cursor-pointer ${
               settings.sound_enabled 
                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50' 
@@ -305,6 +406,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
             }`}
           >
             {settings.sound_enabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          {/* Keyboard Shortcuts Cheat Sheet Button (sm+) */}
+          <button
+            id="btn-header-shortcuts"
+            onClick={onOpenShortcutsModal}
+            title="Pintasan Keyboard Staf (Ctrl+/ atau ?)"
+            className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            aria-label="Pintasan Keyboard"
+          >
+            <Keyboard className="w-4 h-4" />
           </button>
 
           {/* Primary Action: Tombol Tap (Visible on Mobile & Desktop) */}
@@ -327,7 +439,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
               aria-label="Notifikasi"
             >
               <Bell className="w-4 h-4" />
-              {unreadNotifs.length > 0 && (
+              {totalUnreadCount > 0 && (
                 <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900" />
               )}
             </button>
@@ -344,17 +456,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 px-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Notifikasi</h4>
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Pemberitahuan & Alert</h4>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
-                        {notifications.length}
+                        {notifications.length + adminAlerts.length}
                       </span>
+                      {totalUnreadCount > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-black">
+                          {totalUnreadCount} Baru
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       {notifications.length > 0 && (
                         <button
                           onClick={clearNotifications}
                           className="text-[11px] text-slate-400 hover:text-rose-600 p-1 flex items-center gap-1 cursor-pointer"
-                          title="Hapus Semua"
+                          title="Hapus Semua Riwayat"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -368,10 +485,50 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
                     </div>
                   </div>
 
-                  <div className="max-h-72 overflow-y-auto py-2 space-y-1.5">
-                    {notifications.length === 0 ? (
+                  <div className="max-h-80 overflow-y-auto py-2 space-y-2">
+                    {/* Live Critical Alerts Section */}
+                    {adminAlerts.length > 0 && (
+                      <div className="space-y-1.5 pb-1 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider px-1 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                          Alert Sistem Real-time ({adminAlerts.length})
+                        </span>
+                        {adminAlerts.slice(0, 3).map((alert) => (
+                          <div
+                            key={alert.id}
+                            onClick={() => {
+                              setShowNotifications(false);
+                              if (alert.actionTab) {
+                                onNavigate(alert.actionTab);
+                              }
+                            }}
+                            className={`p-2 rounded-xl text-xs transition-colors cursor-pointer flex gap-2 ${
+                              alert.priority === 'urgent'
+                                ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
+                                : 'bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
+                            }`}
+                          >
+                            <div className={`w-2 h-2 rounded-full mt-1 shrink-0 ${
+                              alert.priority === 'urgent' ? 'bg-rose-500' : 'bg-amber-500'
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold truncate">{alert.title}</p>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5">{alert.message}</p>
+                              {alert.actionLabel && (
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 inline-block hover:underline">
+                                  → {alert.actionLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Standard notifications */}
+                    {notifications.length === 0 && adminAlerts.length === 0 ? (
                       <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
-                        Tidak ada notifikasi baru
+                        Tidak ada notifikasi atau peringatan baru
                       </div>
                     ) : (
                       notifications.map((notif, idx) => (
@@ -514,6 +671,33 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
                         >
                           <Tv className="w-4 h-4 text-blue-500" />
                           <span>Mode Kios Display TV</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            setShowPwaInstallModal(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left transition-colors cursor-pointer text-emerald-600 dark:text-emerald-400 font-semibold"
+                        >
+                          <Download className="w-4 h-4 text-emerald-500" />
+                          <span>Download / Pasang App</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            if (onOpenShortcutsModal) onOpenShortcutsModal();
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-left transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Keyboard className="w-4 h-4 text-indigo-500" />
+                            <span>Pintasan Keyboard</span>
+                          </div>
+                          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-mono text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600">
+                            Ctrl+/
+                          </kbd>
                         </button>
                       </div>
 
@@ -672,6 +856,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar, onNavigate,
           onClose={closeWhatsAppModal} 
         />
       )}
+      {/* Offline RFID Queue Management Modal */}
+      {showOfflineQueueModal && (
+        <OfflineQueueModal
+          isOpen={showOfflineQueueModal}
+          onClose={() => setShowOfflineQueueModal(false)}
+        />
+      )}
+      {/* PWA Install Guide & QR Modal */}
+      <PWAInstallModal
+        isOpen={showPwaInstallModal}
+        onClose={() => setShowPwaInstallModal(false)}
+      />
     </>
   );
 };

@@ -347,38 +347,4 @@ export function calculateClassLeaderboard(
   return list.sort((a, b) => b.totalXp - a.totalXp);
 }
 
-export const INITIAL_AWARDS: LiteracyAward[] = [
-  {
-    id: 'award-001',
-    student_id: 'std-001',
-    title: 'Juara 1 Santri Paling Rajin Membaca (Bintang Pustaka)',
-    period: 'Agustus 2026',
-    category: 'top_reader',
-    certificate_no: 'DL-2026/VIII/001',
-    reward_item: 'Kitab Fathul Qorib Syarah + Voucher Koperasi Rp 50.000',
-    awarded_at: '2026-08-15T09:00:00Z',
-    notes: 'Kunjungan presensi tertinggi dengan total waktu membaca di atas 120 jam.'
-  },
-  {
-    id: 'award-002',
-    student_id: 'std-003',
-    title: 'Juara 1 Kolektor & Pembaca Kitab Turats',
-    period: 'Agustus 2026',
-    category: 'top_borrower',
-    certificate_no: 'DL-2026/VIII/002',
-    reward_item: 'Kamus Al-Munawwir Arab-Indonesia + Piagam Penghargaan',
-    awarded_at: '2026-08-15T09:00:00Z',
-    notes: 'Telah meminjam dan menyelesaikan 8 kitab kuning dalam satu semester.'
-  },
-  {
-    id: 'award-003',
-    student_id: 'std-004',
-    title: 'Bintang Disiplin & Amanah Buku',
-    period: 'Semester Ganjil 2026',
-    category: 'discipline_star',
-    certificate_no: 'DL-2026/VIII/003',
-    reward_item: 'Al-Qur\'an Mushaf Tajwid Warna + Sertifikat Kehormatan',
-    awarded_at: '2026-08-01T10:00:00Z',
-    notes: 'Selalu mengembalikan kitab tepat waktu dengan kondisi fisik yang sangat terawat.'
-  }
-];
+export const INITIAL_AWARDS: LiteracyAward[] = [];

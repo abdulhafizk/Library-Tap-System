@@ -22,7 +22,8 @@ import {
   Plus,
   Trophy,
   FileText,
-  Printer
+  Printer,
+  BookPlus
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -40,6 +41,8 @@ import { NavTab } from '../layout/Sidebar';
 import { Student } from '../../types';
 import { MonthlyReportModal } from '../visits/MonthlyReportModal';
 import { LibraryInsights } from './LibraryInsights';
+import { getWishlistsFromStorage } from '../../utils/santriStorageUtils';
+import { AdminRealtimeAlertBanner } from './AdminRealtimeAlertBanner';
 
 interface DashboardPageProps {
   onNavigate: (tab: NavTab) => void;
@@ -140,22 +143,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
   const capacityPercentage = Math.min(100, Math.round((activeVisitsCount / (settings.capacity || 60)) * 100));
 
+  const pendingWishlistCount = React.useMemo(() => {
+    try {
+      const list = getWishlistsFromStorage();
+      return list.filter(w => w.status === 'pending').length;
+    } catch {
+      return 0;
+    }
+  }, []);
+
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-5 max-w-7xl mx-auto">
+      {/* Real-time System Alerts & Circulation Warnings for Admin/Staff */}
+      <AdminRealtimeAlertBanner 
+        onNavigate={onNavigate} 
+        soundEnabled={settings.sound_enabled ?? true} 
+      />
+
       {/* 4 Clean Metric Cards */}
       <div className="flex items-center justify-between pt-1">
         <h2 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-emerald-600" />
           Ringkasan Operasional Perpustakaan
         </h2>
-        <button
-          type="button"
-          onClick={() => setShowMonthlyReportModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>Laporan Bulanan (PDF)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('updates')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title="Lihat riwayat fitur dan log pembaruan sistem"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>Update Log</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-600 text-white font-black">v2.6</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMonthlyReportModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Laporan Bulanan (PDF)</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

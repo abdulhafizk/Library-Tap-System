@@ -67,4 +67,62 @@ html, body, * {
   height: 0px;
 }
 
+/* ==========================================================================
+   PRINT ISOLATION RULES
+   Ensures clean certificate printing without background application UI
+   ========================================================================== */
+@media print {
+  /* Set standard print page margins */
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When printing from modal or certificate studio, hide all background main layout */
+  body.printing-certificate aside,
+  body.printing-certificate header,
+  body.printing-certificate nav,
+  body.printing-certificate main > *:not([data-print-container]) {
+    display: none !important;
+  }
+
+  /* Universal print isolation class */
+  .certificate-print-portal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: #ffffff !important;
+    z-index: 99999 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .certificate-sheet-printable {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .certificate-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+}
+
+
 

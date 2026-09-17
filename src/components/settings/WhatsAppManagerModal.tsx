@@ -19,10 +19,20 @@ import {
   Zap,
   Globe,
   Lock,
-  Trash2
+  Trash2,
+  Server,
+  Play
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
-import { defaultWhatsAppConfig, WhatsAppNotificationConfig, formatPhoneNumberToWA, createWhatsAppDirectLink } from '../../utils/whatsappUtils';
+import { 
+  defaultWhatsAppConfig, 
+  WhatsAppNotificationConfig, 
+  formatPhoneNumberToWA, 
+  createWhatsAppDirectLink,
+  DEFAULT_LIVE_WA_GATEWAY_URL,
+  DEFAULT_LIVE_WA_API_KEY,
+  testGatewayConnection 
+} from '../../utils/whatsappUtils';
 
 export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { 
@@ -37,10 +47,21 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
 
   const currentWaConfig = settings.whatsapp || defaultWhatsAppConfig;
 
-  const [formConfig, setFormConfig] = useState<WhatsAppNotificationConfig>(currentWaConfig);
+  const [formConfig, setFormConfig] = useState<WhatsAppNotificationConfig>(() => ({
+    ...defaultWhatsAppConfig,
+    ...currentWaConfig,
+    webhook_url: currentWaConfig.webhook_url || DEFAULT_LIVE_WA_GATEWAY_URL,
+    webhook_api_key: currentWaConfig.webhook_api_key || DEFAULT_LIVE_WA_API_KEY,
+  }));
   const [activeTab, setActiveTab] = useState<'config' | 'templates' | 'broadcast' | 'logs'>('config');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Live Test State
+  const [testPhone, setTestPhone] = useState(formConfig.admin_phone || '081234567890');
+  const [testMessage, setTestMessage] = useState('🌟 Tes integrasi WhatsApp Gateway Perpustakaan Pesantren. Endpoint live aktif dan terhubung!');
+  const [isTestingLive, setIsTestingLive] = useState(false);
+  const [liveTestResponse, setLiveTestResponse] = useState<{ status: 'success' | 'error'; message: string; fullDetails?: string } | null>(null);
 
   // Broadcast manual state
   const [broadcastTarget, setBroadcastTarget] = useState<'admin' | 'custom'>('admin');
@@ -56,6 +77,41 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
     updateSettings({ whatsapp: formConfig });
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2500);
+  };
+
+  const applyOfficialLiveGatewayPreset = () => {
+    setFormConfig(prev => ({
+      ...prev,
+      provider: 'live_gateway',
+      webhook_url: DEFAULT_LIVE_WA_GATEWAY_URL,
+      webhook_api_key: DEFAULT_LIVE_WA_API_KEY,
+    }));
+  };
+
+  const handleRunLiveTest = async () => {
+    setIsTestingLive(true);
+    setLiveTestResponse(null);
+    try {
+      const res = await testGatewayConnection(
+        testPhone,
+        formConfig,
+        testMessage || undefined
+      );
+
+      setLiveTestResponse({
+        status: res.status,
+        message: res.message,
+        fullDetails: res.details || res.rawResponse
+      });
+    } catch (err: any) {
+      setLiveTestResponse({
+        status: 'error',
+        message: `Network/CORS info: ${err?.message || 'Request gagal'}. Format URL dan Header telah disesuaikan.`,
+        fullDetails: String(err?.stack || err)
+      });
+    } finally {
+      setIsTestingLive(false);
+    }
   };
 
   const handleCopyText = (id: string, text: string) => {
@@ -293,20 +349,26 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
               </div>
 
               {/* Webhook Gateway & Provider Setup */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-emerald-600" />
+                    <Server className="w-4 h-4 text-emerald-600" />
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                      Pilihan Gateway & Provider WhatsApp
+                      Gateway & REST API WhatsApp
                     </h4>
                   </div>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                    {formConfig.webhook_url ? 'Mode Webhook Gateway' : 'Mode Direct wa.me'}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={applyOfficialLiveGatewayPreset}
+                    className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 text-emerald-800 dark:text-emerald-300 font-bold text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
+                  >
+                    <Zap className="w-3 h-3 text-amber-500" />
+                    <span>Pakai Gateway Live Resmi Pesantren</span>
+                  </button>
                 </div>
+                
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Pilih layanan penyedia gateway WhatsApp yang Anda gunakan untuk pengiriman pesan di latar belakang (background), atau gunakan mode direct link wa.me yang bekerja tanpa biaya langganan gateway!
+                  Layanan gateway aktif menggunakan REST API Cloud Run untuk pengiriman notifikasi otomatis saat santri tap RFID (masuk/keluar), sirkulasi buku, dan pengingat jadwal perpustakaan.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -315,26 +377,31 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
                       Provider WhatsApp
                     </label>
                     <select
-                      value={formConfig.provider || 'fonnte'}
+                      value={formConfig.provider || 'live_gateway'}
                       onChange={(e) => {
                         const val = e.target.value as any;
                         let url = formConfig.webhook_url;
-                        if (val === 'fonnte' && (!url || url.includes('wablas') || url.includes('whacenter'))) {
+                        let key = formConfig.webhook_api_key;
+                        if (val === 'live_gateway') {
+                          url = DEFAULT_LIVE_WA_GATEWAY_URL;
+                          key = DEFAULT_LIVE_WA_API_KEY;
+                        } else if (val === 'fonnte') {
                           url = 'https://api.fonnte.com/send';
-                        } else if (val === 'wablas' && (!url || url.includes('fonnte') || url.includes('whacenter'))) {
+                        } else if (val === 'wablas') {
                           url = 'https://kudus.wablas.com/api/send-message';
-                        } else if (val === 'whacenter' && (!url || url.includes('fonnte') || url.includes('wablas'))) {
+                        } else if (val === 'whacenter') {
                           url = 'https://app.whacenter.com/api/send';
                         }
-                        setFormConfig({ ...formConfig, provider: val, webhook_url: url });
+                        setFormConfig({ ...formConfig, provider: val, webhook_url: url, webhook_api_key: key });
                       }}
                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                     >
-                      <option value="fonnte">Fonnte (Rekomendasi Indonesia)</option>
+                      <option value="live_gateway">🌟 Live WA Gateway Pesantren (Cloud Service)</option>
+                      <option value="fonnte">Fonnte (Gateway Indonesia)</option>
                       <option value="wablas">Wablas Gateway</option>
                       <option value="whacenter">Whacenter Gateway</option>
-                      <option value="generic">Generic Webhook / Baileys Node.js</option>
-                      <option value="custom">Custom REST API</option>
+                      <option value="generic">Generic REST Webhook / Baileys</option>
+                      <option value="custom">Custom Endpoint API</option>
                     </select>
                   </div>
 
@@ -356,30 +423,94 @@ export const WhatsAppManagerModal: React.FC<{ isOpen: boolean; onClose: () => vo
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      Endpoint Webhook URL
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                        Endpoint URL (Method: POST)
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">Header: Content-Type: application/json</span>
+                    </div>
                     <input
                       type="url"
                       value={formConfig.webhook_url || ''}
                       onChange={(e) => setFormConfig({ ...formConfig, webhook_url: e.target.value })}
-                      placeholder="https://api.fonnte.com/send"
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                      placeholder={DEFAULT_LIVE_WA_GATEWAY_URL}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono text-emerald-700 dark:text-emerald-300 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                      API Token / Authorization Key
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                        Authorization Bearer Token / API Key (Header: Authorization & x-api-key)
+                      </label>
+                    </div>
                     <input
-                      type="password"
+                      type="text"
                       value={formConfig.webhook_api_key || ''}
                       onChange={(e) => setFormConfig({ ...formConfig, webhook_api_key: e.target.value })}
-                      placeholder="Token API Gateway (Misal Token Fonnte)..."
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                      placeholder="wag_live_1nt3faszsenjuu53vio03licvlor"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                     />
                   </div>
+                </div>
+
+                {/* Direct Live Testing Module */}
+                <div className="mt-4 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-emerald-900/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                      <span>Uji Coba Kirim Langsung ke Gateway (Live Test)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">POST /api/v1/messages/send</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <input
+                        type="text"
+                        value={testPhone}
+                        onChange={(e) => setTestPhone(e.target.value)}
+                        placeholder="Nomor Tujuan (cth: 081234567890)"
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={testMessage}
+                        onChange={(e) => setTestMessage(e.target.value)}
+                        placeholder="Pesan pengujian..."
+                        className="flex-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                      <button
+                        type="button"
+                        disabled={isTestingLive}
+                        onClick={handleRunLiveTest}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>{isTestingLive ? 'Menguji...' : 'Test Connection'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {liveTestResponse && (
+                    <div className={`p-2.5 rounded-lg text-xs font-mono whitespace-pre-wrap ${
+                      liveTestResponse.status === 'success' 
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                    }`}>
+                      <div className="font-bold flex items-center gap-1 mb-1">
+                        {liveTestResponse.status === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <AlertCircle className="w-3.5 h-3.5 text-amber-600" />}
+                        <span>{liveTestResponse.message}</span>
+                      </div>
+                      {liveTestResponse.fullDetails && (
+                        <div className="text-[11px] opacity-80 max-h-24 overflow-y-auto">
+                          {liveTestResponse.fullDetails}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

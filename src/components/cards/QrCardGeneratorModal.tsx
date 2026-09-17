@@ -16,11 +16,19 @@ import {
   Layers,
   Palette,
   ShieldCheck,
-  Eye
+  Eye,
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, Gender, StudentStatus } from '../../types';
 import { generateQrDataUrl, generateRandomCardUid } from '../../utils/qrUtils';
+import { 
+  downloadCardElementAsPng, 
+  downloadCardElementAsPdf,
+  generateCardCanvasPng,
+  downloadDataUrl
+} from '../../utils/cardDownloadUtils';
 import { ImageUpload } from '../common/ImageUpload';
 
 interface QrCardGeneratorModalProps {
@@ -67,6 +75,9 @@ export const QrCardGeneratorModal: React.FC<QrCardGeneratorModalProps> = ({
   const [isSavedSuccess, setIsSavedSuccess] = useState<boolean>(false);
   const [savedMessage, setSavedMessage] = useState<string>('');
 
+  const [isDownloadingCard, setIsDownloadingCard] = useState<boolean>(false);
+  const [downloadSuccessMsg, setDownloadSuccessMsg] = useState<string | null>(null);
+
   const cardPreviewRef = useRef<HTMLDivElement>(null);
 
   // Initialize or re-generate UID when opening
@@ -86,6 +97,7 @@ export const QrCardGeneratorModal: React.FC<QrCardGeneratorModalProps> = ({
         setCardUid(`QR-${nextNis}`);
       }
       setIsSavedSuccess(false);
+      setDownloadSuccessMsg(null);
     }
   }, [isOpen, initialStudent, students.length]);
 
@@ -129,7 +141,85 @@ export const QrCardGeneratorModal: React.FC<QrCardGeneratorModalProps> = ({
     });
   };
 
-  // Download Standalone QR Code as PNG
+  // 1. Download Full ID Card as High-Res PNG (Same dimensions & style as preview)
+  const handleDownloadCardPng = async () => {
+    setIsDownloadingCard(true);
+    setDownloadSuccessMsg(null);
+
+    const baseName = createWithStudent && studentData.name.trim() 
+      ? `Kartu_Santri_${studentData.name.trim().replace(/\s+/g, '_')}_${studentData.nis}`
+      : `Kartu_Cadangan_${cardUid}`;
+
+    try {
+      let success = false;
+      if (cardPreviewRef.current) {
+        success = await downloadCardElementAsPng(cardPreviewRef.current, `${baseName}.png`, 3);
+      }
+
+      if (!success) {
+        // Fallback to pure high-res Canvas generator
+        const fallbackStudent: Student | null = createWithStudent ? {
+          id: 'temp',
+          nis: studentData.nis,
+          name: studentData.name || 'Nama Santri',
+          class: studentData.class,
+          gender: studentData.gender,
+          photo_url: studentData.photo_url,
+          rfid_uid: cardUid,
+          status: studentData.status,
+          created_at: new Date().toISOString()
+        } : null;
+
+        const canvasPng = await generateCardCanvasPng({
+          student: fallbackStudent,
+          cardUid: cardUid,
+          note: spareCardData.note,
+          settings: settings,
+          qrColor: qrColor
+        });
+
+        if (canvasPng) {
+          downloadDataUrl(canvasPng, `${baseName}.png`);
+          success = true;
+        }
+      }
+
+      if (success) {
+        setDownloadSuccessMsg(`Kartu berhasil diunduh (${baseName}.png) dalam format CR80 HD.`);
+        setTimeout(() => setDownloadSuccessMsg(null), 4000);
+      }
+    } catch (err) {
+      console.error('Download card error:', err);
+    } finally {
+      setIsDownloadingCard(false);
+    }
+  };
+
+  // 2. Download ID Card as Standard Printable PDF
+  const handleDownloadCardPdf = async () => {
+    setIsDownloadingCard(true);
+    setDownloadSuccessMsg(null);
+
+    const baseName = createWithStudent && studentData.name.trim() 
+      ? `Kartu_Santri_${studentData.name.trim().replace(/\s+/g, '_')}_${studentData.nis}`
+      : `Kartu_Cadangan_${cardUid}`;
+
+    try {
+      if (cardPreviewRef.current) {
+        const success = await downloadCardElementAsPdf(cardPreviewRef.current, null, `${baseName}.pdf`);
+        if (success) {
+          setDownloadSuccessMsg(`File PDF kartu berhasil diunduh (ukuran 85.6 × 54 mm).`);
+          setTimeout(() => setDownloadSuccessMsg(null), 4000);
+        }
+      }
+    } catch (err) {
+      console.error('PDF download error:', err);
+    } finally {
+      setIsDownloadingCard(false);
+    }
+  };
+
+  // 3. Download Standalone QR Code as PNG
   const handleDownloadQrOnly = () => {
     if (!qrDataUrl) return;
     const link = document.createElement('a');
@@ -668,25 +758,69 @@ export const QrCardGeneratorModal: React.FC<QrCardGeneratorModalProps> = ({
 
               {/* Action Buttons & Outputs */}
               <div className="space-y-2.5 pt-2">
-                <div className="grid grid-cols-2 gap-2">
+                {/* Primary Card Download Button */}
+                <button
+                  type="button"
+                  onClick={handleDownloadCardPng}
+                  disabled={isDownloadingCard}
+                  className="w-full p-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs shadow-md shadow-blue-500/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDownloadingCard ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Memproses Gambar Kartu HD...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Download Kartu Perpustakaan (.PNG HD)</span>
+                      <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-mono font-medium">
+                        Ukuran Standar CR80
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCardPdf}
+                    disabled={isDownloadingCard}
+                    className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+                    title="Download Kartu dalam format PDF standar ID Card (85.6 x 54 mm)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                    <span className="truncate">Kartu PDF</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleDownloadQrOnly}
                     className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    title="Download Barcode QR Saja"
                   >
-                    <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>Download QR (.PNG)</span>
+                    <QrCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span className="truncate">QR Saja</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handlePrintCard}
                     className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    title="Cetak langsung ke printer"
                   >
                     <Printer className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                    <span>Cetak Kartu Fisik</span>
+                    <span className="truncate">Cetak Fisik</span>
                   </button>
                 </div>
+
+                {/* Download Success Feedback Alert */}
+                {downloadSuccessMsg && (
+                  <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="flex-1 font-medium">{downloadSuccessMsg}</span>
+                  </div>
+                )}
 
                 {/* Success Feedback Alert */}
                 {isSavedSuccess && (

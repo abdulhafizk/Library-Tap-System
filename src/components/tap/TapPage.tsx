@@ -38,7 +38,9 @@ import {
   Calendar,
   Trophy,
   Flame,
-  Star
+  Star,
+  WifiOff,
+  Database
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import jsQR from 'jsqr';
@@ -46,6 +48,7 @@ import { useLibrary } from '../../context/LibraryContext';
 import { TapResult } from '../../types';
 import { soundManager } from '../../utils/audio';
 import { createWhatsAppDirectLink, openWhatsAppDirect } from '../../utils/whatsappUtils';
+import { OfflineQueueModal } from '../common/OfflineQueueModal';
 
 interface TapPageProps {
   onGoToStudents?: () => void;
@@ -56,11 +59,17 @@ export const TapPage: React.FC<TapPageProps> = () => {
     handleRfidTap, 
     currentTapResult, 
     clearCurrentTapResult, 
+    isProcessingTap,
     settings, 
     updateSettings, 
     students,
+    offlineQueueCount,
+    isOnline,
+    flushOfflineQueue,
+    isProcessingOfflineQueue
   } = useLibrary();
 
+  const [showOfflineQueueModal, setShowOfflineQueueModal] = useState(false);
   const [inputUid, setInputUid] = useState('');
   const [countdown, setCountdown] = useState<number>(settings.auto_reset_seconds || 4);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -100,6 +109,11 @@ export const TapPage: React.FC<TapPageProps> = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const countdownTimerRef = useRef<number | null>(null);
+
+  // Anti-Double-Tap & Rapid Scan Cooldown Lock for TapPage
+  const cooldownUntilRef = useRef<number>(0);
+  const [cooldownNotice, setCooldownNotice] = useState<string | null>(null);
+  const cooldownNoticeTimerRef = useRef<any>(null);
 
   // Detect Web NFC support on device/browser & iframe status
   const [isInsideIframe, setIsInsideIframe] = useState(false);
@@ -600,13 +614,33 @@ export const TapPage: React.FC<TapPageProps> = () => {
   }, [currentTapResult, settings.auto_reset_seconds, clearCurrentTapResult, isHoveringResult, triggerCelebrationConfetti]);
 
   const executeTap = async (uid: string) => {
-    if (!uid.trim()) return;
+    const clean = uid ? uid.trim() : '';
+    if (!clean) return;
+
+    const now = Date.now();
+    // Check if within rapid-fire cooldown window or already processing
+    if (now < cooldownUntilRef.current || isProcessingTap) {
+      const remainingSecs = Math.max(1, Math.ceil((cooldownUntilRef.current - now) / 1000));
+      if (settings.sound_enabled) {
+        soundManager.playErrorSound();
+      }
+      setCooldownNotice(`⏳ Jeda Anti-Double Tap: Harap tunggu ${remainingSecs} detik.`);
+      if (cooldownNoticeTimerRef.current) clearTimeout(cooldownNoticeTimerRef.current);
+      cooldownNoticeTimerRef.current = setTimeout(() => {
+        setCooldownNotice(null);
+      }, 2500);
+      return;
+    }
+
+    const cooldownDuration = Math.max(3, settings.kiosk_tap_cooldown_seconds ?? 4);
+    cooldownUntilRef.current = now + (cooldownDuration * 1000);
+
     if (settings.sound_enabled) {
       soundManager.playScanBlip();
     }
     setScannerPulse(true);
     setTimeout(() => setScannerPulse(false), 500);
-    await handleRfidTap(uid);
+    await handleRfidTap(clean);
     setInputUid('');
   };
 
@@ -648,11 +682,18 @@ export const TapPage: React.FC<TapPageProps> = () => {
         isFullscreen ? 'fixed inset-0 z-50 bg-slate-950 p-6 overflow-y-auto' : 'p-4 sm:p-6'
       }`}
     >
-      {/* Sound feedback toast */}
+      {/* Sound feedback toast & Cooldown Warning Toast */}
       {soundFeedbackToast && (
         <div className="fixed top-20 right-6 z-50 bg-slate-900/90 dark:bg-slate-800/90 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg border border-slate-700/50 backdrop-blur-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
           <Volume2 className="w-4 h-4 text-blue-400 animate-pulse" />
           <span>{soundFeedbackToast}</span>
+        </div>
+      )}
+
+      {cooldownNotice && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-amber-600 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-xl border border-amber-400 flex items-center gap-2.5 animate-in fade-in slide-in-from-top-4 duration-200">
+          <Clock className="w-4 h-4 text-white animate-spin" />
+          <span>{cooldownNotice}</span>
         </div>
       )}
 
@@ -720,6 +761,45 @@ export const TapPage: React.FC<TapPageProps> = () => {
           </button>
         </div>
       </div>
+
+      {/* Offline RFID Queue Banner */}
+      {(offlineQueueCount > 0 || !isOnline) && (
+        <div className="max-w-4xl mx-auto w-full mb-4 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+              {!isOnline ? <WifiOff className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+            </div>
+            <div>
+              <p className="font-bold text-amber-900 dark:text-amber-200">
+                {!isOnline ? 'Koneksi Offline (Jaringan Terputus)' : `${offlineQueueCount} Tap Presensi Menunggu Sinkronisasi`}
+              </p>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80 mt-0.5">
+                {offlineQueueCount > 0
+                  ? 'Data presensi tersimpan di antrean offline (localStorage) dan akan otomatis terkirim saat online.'
+                  : 'Sistem siap beroperasi offline. Seluruh tap RFID akan disimpan aman dalam antrean lokal.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowOfflineQueueModal(true)}
+              className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Lihat Antrean ({offlineQueueCount})
+            </button>
+            {offlineQueueCount > 0 && (
+              <button
+                onClick={() => flushOfflineQueue()}
+                disabled={isProcessingOfflineQueue || !isOnline}
+                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isProcessingOfflineQueue ? 'animate-spin' : ''}`} />
+                <span>{isProcessingOfflineQueue ? 'Mengirim...' : 'Sinkronkan'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Audio & Method Control Banner */}
       <div className="max-w-4xl mx-auto w-full mb-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
@@ -1311,11 +1391,18 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 </motion.div>
 
                 {/* Check-in timestamp badge with active pulse */}
-                <div className="flex items-center justify-center gap-2 mb-5">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-5">
                   <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 font-bold text-sm border border-emerald-200 dark:border-emerald-800/80 shadow-2xs w-full sm:w-auto">
                     <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
                     <span>Waktu Masuk: {currentTapResult.checkInTime} WIB</span>
                   </div>
+
+                  {currentTapResult.isOfflineQueued && (
+                    <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-bold w-full sm:w-auto">
+                      <Database className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Antrean Offline ({currentTapResult.offlineQueueCount || 1})</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Dedicated WhatsApp Notification Action Box */}
@@ -1608,7 +1695,7 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 </motion.div>
 
                 {/* Stats row: Check out & Duration with High Contrast Badges */}
-                <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-center shadow-2xs">
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Waktu Keluar</p>
                     <p className="text-sm font-black text-slate-900 dark:text-slate-100 mt-0.5 font-mono">{currentTapResult.checkOutTime} WIB</p>
@@ -1618,6 +1705,13 @@ export const TapPage: React.FC<TapPageProps> = () => {
                     <p className="text-sm font-black text-blue-700 dark:text-blue-300 mt-0.5">{currentTapResult.durationText}</p>
                   </div>
                 </div>
+
+                {currentTapResult.isOfflineQueued && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-bold mb-4">
+                    <Database className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Tersimpan di Antrean Offline ({currentTapResult.offlineQueueCount || 1} antrean)</span>
+                  </div>
+                )}
 
                 {/* Dedicated WhatsApp Notification Action Box for Check-Out */}
                 <div 
@@ -1786,6 +1880,65 @@ export const TapPage: React.FC<TapPageProps> = () => {
                 </div>
               </motion.div>
             )}
+
+            {/* COOLDOWN / ANTI-DOUBLE-TAP / ANTI-PASSBACK BLOCKED STATE */}
+            {currentTapResult.type === 'cooldown_blocked' && (
+              <motion.div 
+                initial={{ scale: 0.95 }}
+                animate={{ scale: [0.95, 1.02, 1] }}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-amber-400 dark:border-amber-600 text-center relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-2 bg-slate-100 dark:bg-slate-800">
+                  <div 
+                    className="h-full bg-amber-500 transition-all duration-150"
+                    style={{ width: `${(countdown / (settings.auto_reset_seconds || 4)) * 100}%` }}
+                  />
+                </div>
+
+                <div className="w-16 h-16 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3 border border-amber-200 dark:border-amber-800 shadow-xs">
+                  <Clock className="w-9 h-9" />
+                </div>
+
+                {/* Sound effect indicator pill */}
+                {settings.sound_enabled && (
+                  <div className="flex items-center justify-center gap-1.5 mb-3 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                    <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+                    <span>Jeda Pengaman Aktif</span>
+                  </div>
+                )}
+
+                <h2 className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight mb-2">
+                  Jeda Pemindaian Aktif
+                </h2>
+                <p className="text-sm text-slate-700 dark:text-slate-200 font-medium mb-5">
+                  {currentTapResult.message || 'Kartu baru saja di-tap. Harap tunggu sejenak untuk menghindari duplikasi absensi.'}
+                </p>
+
+                {currentTapResult.student && (
+                  <div className="flex items-center justify-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 mb-5 text-xs text-amber-900 dark:text-amber-200">
+                    <span className="font-bold">{currentTapResult.student.name}</span>
+                    <span>•</span>
+                    <span>Kelas {currentTapResult.student.class}</span>
+                    {currentTapResult.checkInTime && (
+                      <>
+                        <span>•</span>
+                        <span>Masuk: {currentTapResult.checkInTime} WIB</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span>Mencegah kartu tertap dobel / tidak sengaja</span>
+                  <button
+                    onClick={clearCurrentTapResult}
+                    className="text-amber-600 dark:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Tutup ({countdown}s)
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </div>
@@ -1920,6 +2073,14 @@ export const TapPage: React.FC<TapPageProps> = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Offline RFID Queue Modal */}
+      {showOfflineQueueModal && (
+        <OfflineQueueModal
+          isOpen={showOfflineQueueModal}
+          onClose={() => setShowOfflineQueueModal(false)}
+        />
       )}
     </div>
   );

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#10b981" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  
+  <!-- Outer subtle border -->
+  <rect x="8" y="8" width="496" height="496" rx="120" fill="none" stroke="#34d399" stroke-width="6" stroke-opacity="0.25" />
+  
+  <!-- RFID Signal Waves (Top) -->
+  <g stroke="url(#accentGrad)" stroke-width="14" stroke-linecap="round" fill="none" filter="url(#glow)">
+    <path d="M 216 130 A 60 60 0 0 1 296 130" />
+    <path d="M 180 95 A 110 110 0 0 1 332 95" />
+    <path d="M 144 60 A 160 160 0 0 1 368 60" />
+  </g>
+
+  <!-- Open Book Graphic -->
+  <g fill="#ffffff" filter="url(#glow)">
+    <!-- Left Page -->
+    <path d="M 246 220 C 200 205, 140 205, 110 215 C 100 218, 96 226, 96 236 L 96 376 C 96 384, 102 390, 110 388 C 140 378, 200 378, 246 392 Z" />
+    <!-- Right Page -->
+    <path d="M 266 220 C 312 205, 372 205, 402 215 C 412 218, 416 226, 416 236 L 416 376 C 416 384, 410 390, 402 388 C 372 378, 312 378, 266 392 Z" />
+    <!-- Book Center Spine -->
+    <rect x="250" y="215" width="12" height="180" rx="6" fill="#10b981" />
+  </g>
+  
+  <!-- Smart Tap RFID Chip icon in center of spine -->
+  <circle cx="256" cy="180" r="18" fill="#38bdf8" />
+  <circle cx="256" cy="180" r="9" fill="#ffffff" />
+  
+  <!-- Text Ribbon: Perpustakaan Digital -->
+  <g font-family="Plus Jakarta Sans, sans-serif" font-weight="800" text-anchor="middle">
+    <text x="256" y="445" font-size="34" fill="#f8fafc" letter-spacing="4">LIBRARY TAP</text>
+    <text x="256" y="475" font-size="18" fill="#34d399" font-weight="600" letter-spacing="3">SISTEM PRESENSI &amp; SIRKULASI</text>
+  </g>
+</svg>

@@ -14,9 +14,13 @@ import {
   ShieldCheck,
   UserCheck,
   Tv,
-  Trophy
+  Trophy,
+  Sparkles,
+  Keyboard,
+  Smartphone
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 
 export type NavTab = 
   | 'dashboard' 
@@ -29,7 +33,9 @@ export type NavTab =
   | 'visits' 
   | 'live' 
   | 'stats' 
+  | 'santri_menu'
   | 'users'
+  | 'updates'
   | 'settings';
 
 interface SidebarProps {
@@ -38,6 +44,7 @@ interface SidebarProps {
   isMobileOpen: boolean;
   onCloseMobile: () => void;
   onOpenProfile?: () => void;
+  onOpenShortcutsModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -45,30 +52,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   isMobileOpen,
   onCloseMobile,
-  onOpenProfile
+  onOpenProfile,
+  onOpenShortcutsModal
 }) => {
-  const { activeVisitsCount, activeLoansCount, overdueLoansCount, currentUser, logout, settings } = useLibrary();
+  const { activeVisitsCount, activeLoansCount, overdueLoansCount, currentUser, logout, settings, pendingWishlistsCount } = useLibrary();
 
   const mainNavItems = [
     { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'tap' as NavTab, label: 'Tap Presensi RFID', icon: Radio, highlight: true },
     { 
       id: 'circulation' as NavTab, 
-      label: 'Sirkulasi Buku', 
+      label: 'Sirkulasi & Usulan Buku', 
       icon: BookOpen, 
-      badge: activeLoansCount > 0 ? activeLoansCount : undefined,
-      badgeColor: overdueLoansCount > 0 ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white',
+      badge: pendingWishlistsCount > 0 ? `${pendingWishlistsCount} Usulan` : (activeLoansCount > 0 ? activeLoansCount : undefined),
+      badgeColor: pendingWishlistsCount > 0 ? 'bg-amber-500 text-slate-950 font-bold' : (overdueLoansCount > 0 ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white'),
       highlight: true
     },
-    {
-      id: 'awards' as NavTab,
-      label: 'Penghargaan & XP',
+    { 
+      id: 'awards' as NavTab, 
+      label: 'Penghargaan & XP', 
       icon: Trophy,
       badgeColor: 'bg-amber-500 text-slate-950 font-bold',
-      highlight: true
+      highlight: true 
     },
     { id: 'kiosk' as NavTab, label: 'Display Kios TV', icon: Tv },
     { id: 'students' as NavTab, label: 'Data Santri', icon: Users },
+    { 
+      id: 'santri_menu' as NavTab, 
+      label: 'Menu Santri', 
+      icon: Smartphone,
+      badge: 'Akses',
+      badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+    },
     { id: 'cards' as NavTab, label: 'Data Kartu RFID', icon: CreditCard },
     { id: 'visits' as NavTab, label: 'Riwayat Kunjungan', icon: History },
   ];
@@ -88,6 +103,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ShieldCheck,
       badge: currentUser?.role === 'admin' ? 'Admin' : undefined,
       badgeColor: 'bg-amber-500 text-slate-950 font-bold'
+    },
+    { 
+      id: 'updates' as NavTab, 
+      label: 'Update Log', 
+      icon: Sparkles,
+      badge: 'v2.8',
+      badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
     },
     { id: 'settings' as NavTab, label: 'Pengaturan', icon: Settings },
   ];
@@ -236,6 +258,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
         </div>
+
+        {/* PWA Download / Install Sidebar Widget */}
+        <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <PWAInstallButton variant="sidebar" />
+        </div>
+
+        {/* Keyboard Shortcuts Trigger Button */}
+        {onOpenShortcutsModal && (
+          <div className="px-3 py-1 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <button
+              onClick={onOpenShortcutsModal}
+              className="w-full px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-medium flex items-center justify-between transition-colors cursor-pointer group"
+              title="Daftar Pintasan Keyboard Staf (Ctrl+/ atau ?)"
+            >
+              <div className="flex items-center gap-2">
+                <Keyboard className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                <span className="text-[11px]">Pintasan Keyboard</span>
+              </div>
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-mono text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                Ctrl+/
+              </kbd>
+            </button>
+          </div>
+        )}
 
         {/* User profile & Logout in footer */}
         <div className="p-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">

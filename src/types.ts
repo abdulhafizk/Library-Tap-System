@@ -3,7 +3,7 @@ export type StudentStatus = 'active' | 'graduated' | 'suspended' | 'leave';
 export type CardStatus = 'active' | 'inactive' | 'lost';
 export type VisitStatus = 'inside' | 'completed';
 export type LoanStatus = 'borrowed' | 'returned' | 'overdue';
-export type UserRole = 'admin' | 'staff';
+export type UserRole = 'admin' | 'staff' | 'SANTRI';
 
 export interface Book {
   id: string;
@@ -12,12 +12,15 @@ export interface Book {
   author: string;
   publisher?: string;
   year?: number;
+  publish_year?: number; // Alias kompatibilitas
   category: string; // e.g. 'Fikih & Ushul', 'Hadits', 'Tafsir & Al-Qur\'an', 'Bahasa & Nahwu', 'Sejarah Islam / Tarikh', 'Buku Umum & Sains', 'Novel & Sastra'
   rack_location: string; // e.g. 'Rak A-01 (Kitab Kuning)', 'Rak B-02 (Fikih)'
+  shelf_location?: string; // Alias kompatibilitas
   total_stock: number;
   available_stock: number;
   cover_url?: string;
   isbn?: string;
+  description?: string;
   created_at: string;
 }
 
@@ -85,6 +88,8 @@ export interface AppUser {
   is_default?: boolean; // Default admin protection
   last_login?: string; // ISO string
   created_at: string;
+  student_id?: string; // Relasi ID ke Santri
+  santri_id?: string; // Alias kompatibilitas
 }
 
 import { WhatsAppNotificationConfig, WhatsAppLog } from './utils/whatsappUtils';
@@ -101,12 +106,13 @@ export interface LibrarySettings {
   dark_mode?: boolean;
   auto_reset_seconds: number; // e.g. 5
   kiosk_tap_cooldown_seconds?: number; // e.g. 5 (Delay interval between taps to prevent double tap)
+  anti_passback_seconds?: number; // e.g. 30 (Minimum seconds between In and Out to prevent accidental instant checkout)
   kiosk_mode_allowed: boolean;
   whatsapp?: WhatsAppNotificationConfig;
 }
 
 export interface TapResult {
-  type: 'success_in' | 'success_out' | 'unregistered_card' | 'inactive_card' | 'inactive_student';
+  type: 'success_in' | 'success_out' | 'unregistered_card' | 'inactive_card' | 'inactive_student' | 'cooldown_blocked';
   message: string;
   student?: Student;
   visit?: LibraryVisit;
@@ -122,7 +128,11 @@ export interface TapResult {
   whatsappAdminDirectUrl?: string;
   whatsappParentPhone?: string;
   whatsappAdminPhone?: string;
+  isOfflineQueued?: boolean;
+  offlineQueueCount?: number;
 }
+
+export type { QueuedRfidTap } from './lib/offlineRfidQueue';
 
 export interface NotificationItem {
   id: string;
@@ -147,6 +157,10 @@ export interface LiteracyBadge {
 export interface LiteracyAward {
   id: string;
   student_id: string;
+  student_name?: string;
+  student_nis?: string;
+  student_class?: string;
+  student_photo_url?: string;
   title: string;
   period: string; // e.g. "Agustus 2026", "Semester Ganjil 2026/2027"
   category: 'top_reader' | 'top_borrower' | 'class_champion' | 'discipline_star' | 'special_honor';
@@ -172,4 +186,106 @@ export interface StudentLiteracyProfile {
   lateReturnsCount: number;
   unlockedBadges: Array<{ badge: LiteracyBadge; unlockedAt: string }>;
   recentAwards: LiteracyAward[];
+}
+
+export type WishlistStatus = 'pending' | 'approved' | 'purchased' | 'available' | 'rejected';
+export type WishlistUrgency = 'biasa' | 'penting' | 'sangat_mendesak';
+
+export interface BookWishlist {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_nis: string;
+  student_class?: string;
+  title: string;
+  author: string;
+  publisher?: string;
+  category: string;
+  reason: string;
+  urgency: WishlistUrgency;
+  estimated_volume?: string;
+  status: WishlistStatus;
+  staff_notes?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ReadingJournalEntry {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_nis: string;
+  book_id?: string;
+  book_title: string;
+  book_author: string;
+  chapter_or_page?: string;
+  category: string;
+  title: string;
+  key_quote?: string;
+  summary: string;
+  reflection?: string;
+  rating?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export type SantriNotificationCategory = 'wishlist' | 'overdue' | 'due_soon' | 'award' | 'badge' | 'general';
+
+export interface SantriNotification {
+  id: string;
+  student_id: string;
+  category: SantriNotificationCategory;
+  title: string;
+  message: string;
+  detail?: string;
+  timestamp: string;
+  priority: 'urgent' | 'high' | 'normal' | 'celebration';
+  read: boolean;
+  actionTab?: 'overview' | 'loans' | 'card' | 'visits' | 'wishlist' | 'journal' | 'awards';
+  actionLabel?: string;
+  metadata?: {
+    wishlistId?: string;
+    wishlistTitle?: string;
+    wishlistStatus?: WishlistStatus;
+    loanId?: string;
+    bookTitle?: string;
+    dueDate?: string;
+    daysOverdue?: number;
+    awardId?: string;
+    awardTitle?: string;
+    certificateNo?: string;
+    rewardItem?: string;
+  };
+}
+
+export type { AdminAlertCategory, AdminAlertPriority, AdminAlertNotification } from './utils/adminNotificationUtils';
+
+export type SantriMenuKey = 
+  | 'overview' 
+  | 'catalog' 
+  | 'loans' 
+  | 'returns' 
+  | 'history' 
+  | 'card' 
+  | 'visits' 
+  | 'wishlist' 
+  | 'journal' 
+  | 'awards' 
+  | 'profile' 
+  | 'notifications' 
+  | 'bookmark';
+
+export interface SantriMenu {
+  id: string;
+  menu_key: string;
+  menu_name: string;
+  description?: string;
+  is_enabled: boolean;
+  icon: string; // e.g. 'Home', 'BookOpen', 'BookMarked', 'Undo2', 'History', 'CreditCard', 'PenTool', 'Trophy', 'User', 'Bookmark', 'Bell'
+  route: string; // e.g. '/santri/dashboard', '/santri/katalog', '/santri/peminjaman', etc.
+  sort_order: number;
+  category?: 'utama' | 'sirkulasi' | 'literasi' | 'pengguna';
+  badge?: string;
+  created_at?: string;
+  updated_at?: string;
 }

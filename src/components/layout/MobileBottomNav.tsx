@@ -18,10 +18,13 @@ import {
   ChevronUp,
   User,
   LogOut,
-  Shield
+  Shield,
+  Sparkles,
+  Smartphone
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 import { useLibrary } from '../../context/LibraryContext';
+import { PWAInstallButton } from '../common/PWAInstallButton';
 
 interface MobileBottomNavProps {
   currentTab: NavTab;
@@ -88,11 +91,25 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       label: 'Display Kios TV', 
       icon: Tv 
     },
+    { 
+      id: 'santri_menu' as NavTab, 
+      label: 'Menu Santri', 
+      icon: Smartphone,
+      badge: 'Akses',
+      badgeColor: 'bg-teal-600 text-white'
+    },
     ...(currentUser?.role === 'admin' ? [{ 
       id: 'users' as NavTab, 
       label: 'Kelola Pengguna', 
       icon: ShieldCheck 
     }] : []),
+    { 
+      id: 'updates' as NavTab, 
+      label: 'Update Log', 
+      icon: Sparkles,
+      badge: 'v2.8',
+      badgeColor: 'bg-blue-600 text-white'
+    },
     { 
       id: 'settings', 
       label: 'Pengaturan Sistem', 
@@ -201,6 +218,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* PWA Download / Install App Banner on Mobile */}
+              <div className="mb-3">
+                <PWAInstallButton variant="banner" label="Download Aplikasi Perpustakaan" className="w-full" />
+              </div>
 
               {/* Grid of Menu Items */}
               <div className="grid grid-cols-3 gap-2.5 pt-2">

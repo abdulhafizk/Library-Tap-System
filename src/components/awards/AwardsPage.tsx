@@ -24,7 +24,11 @@ import {
   Calendar,
   Gift,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  Database,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, LiteracyAward, LiteracyBadge } from '../../types';
@@ -36,6 +40,7 @@ import {
   LevelInfo
 } from '../../utils/gamificationUtils';
 import { CertificateModal } from './CertificateModal';
+import { CertificateStudioModal } from './CertificateStudioModal';
 import { AwardCreateModal } from './AwardCreateModal';
 import { StudentProfileAwardsModal } from './StudentProfileAwardsModal';
 
@@ -43,14 +48,29 @@ type AwardsTab = 'leaderboard' | 'tiers_badges' | 'class_ranks' | 'awards_archiv
 type LeaderboardCategory = 'all' | 'reading' | 'borrowing' | 'discipline';
 
 export const AwardsPage: React.FC = () => {
-  const { students, visits, loans, books, awards, deleteAward, sendAwardWhatsAppCongrats } = useLibrary();
+  const { 
+    students, 
+    visits, 
+    loans, 
+    books, 
+    awards, 
+    deleteAward, 
+    sendAwardWhatsAppCongrats,
+    syncWithSupabase,
+    isSupabaseSyncing,
+    isRealtimeConnected,
+    lastRealtimeSync
+  } = useLibrary();
 
   const [activeTab, setActiveTab] = useState<AwardsTab>('leaderboard');
   const [leaderboardCategory, setLeaderboardCategory] = useState<LeaderboardCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [awardSearchQuery, setAwardSearchQuery] = useState('');
+  const [awardCategoryFilter, setAwardCategoryFilter] = useState<string>('all');
   
   // Modals state
   const [isCreateAwardOpen, setIsCreateAwardOpen] = useState(false);
+  const [isCertificateStudioOpen, setIsCertificateStudioOpen] = useState(false);
   const [createAwardStudentId, setCreateAwardStudentId] = useState<string | undefined>(undefined);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<Student | null>(null);
   const [selectedAwardForCert, setSelectedAwardForCert] = useState<{ award: LiteracyAward; student: Student } | null>(null);
@@ -85,6 +105,30 @@ export const AwardsPage: React.FC = () => {
     // Default: By Total XP
     return list.sort((a, b) => b.totalXp - a.totalXp);
   }, [studentProfiles, searchQuery, leaderboardCategory]);
+
+  // Filtered awards for Archive tab
+  const filteredAwards = useMemo(() => {
+    let list = [...awards];
+
+    if (awardCategoryFilter !== 'all') {
+      list = list.filter(a => a.category === awardCategoryFilter);
+    }
+
+    if (awardSearchQuery.trim()) {
+      const q = awardSearchQuery.toLowerCase();
+      list = list.filter(a => 
+        a.title.toLowerCase().includes(q) ||
+        a.certificate_no.toLowerCase().includes(q) ||
+        (a.student_name && a.student_name.toLowerCase().includes(q)) ||
+        (a.student_nis && a.student_nis.includes(q)) ||
+        (a.student_class && a.student_class.toLowerCase().includes(q)) ||
+        (a.reward_item && a.reward_item.toLowerCase().includes(q)) ||
+        (a.period && a.period.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [awards, awardCategoryFilter, awardSearchQuery]);
 
   // Class Leaderboard
   const classLeaderboard = useMemo(() => {
@@ -126,7 +170,7 @@ export const AwardsPage: React.FC = () => {
         <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-yellow-400/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/30 backdrop-blur-md border border-amber-300/30 text-amber-200 text-xs font-semibold">
               <Trophy className="w-3.5 h-3.5" />
@@ -140,16 +184,26 @@ export const AwardsPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Action Buttons: Studio Piagam & Anugerahkan Piagam */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             <button
+              id="btn-open-certificate-studio"
+              onClick={() => setIsCertificateStudioOpen(true)}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-950/80 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border border-amber-400/50 hover:border-amber-400 font-bold text-sm rounded-xl shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Studio Piagam & Cetak</span>
+            </button>
+            <button
+              id="btn-open-create-award"
               onClick={() => {
                 setCreateAwardStudentId(undefined);
                 setIsCreateAwardOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              + Anugerahkan Piagam
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Anugerahkan Piagam</span>
             </button>
           </div>
         </div>
@@ -563,6 +617,94 @@ export const AwardsPage: React.FC = () => {
 
           </div>
 
+          {/* Recent Awards Showcase on Leaderboard */}
+          {awards.length > 0 && (
+            <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/30 dark:via-slate-800/50 dark:to-transparent rounded-2xl p-6 border border-amber-200/80 dark:border-amber-900/50 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500 text-slate-950 shadow-sm">
+                    <Scroll className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                      Piagam Penghargaan Resmi Terkini ({awards.length} Arsip Tersedia)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Seluruh arsip piagam resmi tersimpan permanen di database cloud & dapat dicetak kapan saja.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('awards_archive')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800 font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  <span>Buka Semua Arsip Piagam ({awards.length})</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                {awards.slice(0, 3).map(award => {
+                  const matchedStudent = students.find(s => 
+                    s.id === award.student_id || 
+                    s.nis === award.student_id || 
+                    (award.student_nis && s.nis === award.student_nis) ||
+                    (award.student_name && s.name.toLowerCase() === award.student_name.toLowerCase())
+                  );
+
+                  const student: Student = matchedStudent || {
+                    id: award.student_id || 'std-archived',
+                    nis: award.student_nis || '202407000',
+                    name: award.student_name || 'Santri Penerima Piagam',
+                    class: award.student_class || 'Santri Berprestasi',
+                    gender: 'L',
+                    photo_url: award.student_photo_url || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+                    status: 'active',
+                    created_at: award.awarded_at || new Date().toISOString()
+                  };
+
+                  return (
+                    <div 
+                      key={award.id}
+                      onClick={() => setSelectedAwardForCert({ award, student })}
+                      className="p-3.5 rounded-xl bg-white dark:bg-slate-800/90 border border-amber-200/70 dark:border-amber-900/40 hover:border-amber-400 dark:hover:border-amber-600 transition-all cursor-pointer shadow-xs flex flex-col justify-between"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <img
+                          src={student.photo_url || award.student_photo_url || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80'}
+                          alt={student.name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-amber-400 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                            {student.name}
+                          </p>
+                          <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold truncate mt-0.5">
+                            {award.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {award.certificate_no} &bull; {award.period}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 dark:text-slate-400 truncate max-w-[170px]">
+                          🎁 {award.reward_item}
+                        </span>
+                        <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 shrink-0">
+                          <Printer className="w-3 h-3" /> Cetak
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
@@ -783,42 +925,186 @@ export const AwardsPage: React.FC = () => {
       {/* TAB 4: AWARDS ARCHIVE & HALL OF FAME */}
       {activeTab === 'awards_archive' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+          
+          {/* Cloud Database Storage & Status Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 rounded-2xl p-5 text-white shadow-md border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                <Database className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-bold text-sm">Penyimpanan Database Cloud (Supabase)</h4>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                    isRealtimeConnected 
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {isRealtimeConnected ? '● Cloud Realtime Aktif' : '● Database Lokal Siap Sync'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Tersimpan <strong>{awards.length} Arsip Piagam</strong> di tabel database <code className="text-amber-300 font-mono">literacy_awards</code> secara terpusat & permanen.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isSupabaseSyncing}
+              onClick={() => syncWithSupabase()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSupabaseSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSupabaseSyncing ? 'Menyinkronkan...' : 'Sinkronkan Arsip ke Database'}</span>
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-5">
             
+            {/* Header & Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Scroll className="w-5 h-5 text-amber-500" />
-                  Arsip Piagam & Penghargaan Resmi Pesantren
+                  Arsip Piagam & Penghargaan Resmi Pesantren ({awards.length})
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Daftar santri teladan yang telah resmi dianugerahi Piagam Kehormatan Duta Literasi.
+                  Daftar seluruh santri teladan yang telah resmi dianugerahi Piagam Kehormatan Duta Literasi.
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  setCreateAwardStudentId(undefined);
-                  setIsCreateAwardOpen(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl shadow transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                + Anugerahkan Piagam Baru
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCertificateStudioOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Studio Cetak</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateAwardStudentId(undefined);
+                    setIsCreateAwardOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-xl shadow transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  + Anugerahkan Piagam Baru
+                </button>
+              </div>
             </div>
 
-            {awards.length === 0 ? (
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/70">
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setAwardCategoryFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    awardCategoryFilter === 'all'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  Semua ({awards.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAwardCategoryFilter('top_reader')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    awardCategoryFilter === 'top_reader'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  🌟 Bintang Pustaka
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAwardCategoryFilter('top_borrower')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    awardCategoryFilter === 'top_borrower'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  📚 Pengkaji Turats
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAwardCategoryFilter('discipline_star')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    awardCategoryFilter === 'discipline_star'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  🛡️ Bintang Disiplin
+                </button>
+              </div>
+
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={awardSearchQuery}
+                  onChange={(e) => setAwardSearchQuery(e.target.value)}
+                  placeholder="Cari nama santri, no. piagam, judul..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100"
+                />
+              </div>
+            </div>
+
+            {/* Awards Grid */}
+            {filteredAwards.length === 0 ? (
               <div className="p-8 text-center rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700">
                 <Trophy className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Belum ada piagam penghargaan yang diterbitkan.</p>
-                <p className="text-xs text-slate-400 mt-1">Klik tombol "+ Anugerahkan Piagam Baru" untuk mulai memberikan penghargaan kepada santri.</p>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  {awards.length === 0 
+                    ? 'Belum ada piagam penghargaan yang diterbitkan.' 
+                    : 'Tidak ada piagam yang cocok dengan kata kunci pencarian.'}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {awards.length === 0 
+                    ? 'Klik tombol "+ Anugerahkan Piagam Baru" untuk mulai memberikan penghargaan kepada santri.' 
+                    : 'Coba ubah kata kunci pencarian atau reset filter kategori.'}
+                </p>
+                {awards.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAwardSearchQuery('');
+                      setAwardCategoryFilter('all');
+                    }}
+                    className="mt-3 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    Reset Filter Pencarian
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {awards.map(award => {
-                  const student = students.find(s => s.id === award.student_id);
-                  if (!student) return null;
+                {filteredAwards.map(award => {
+                  const matchedStudent = students.find(s => 
+                    s.id === award.student_id || 
+                    s.nis === award.student_id || 
+                    (award.student_nis && s.nis === award.student_nis) ||
+                    (award.student_name && s.name.toLowerCase() === award.student_name.toLowerCase())
+                  );
+
+                  const student: Student = matchedStudent || {
+                    id: award.student_id || 'std-archived',
+                    nis: award.student_nis || '202407000',
+                    name: award.student_name || 'Santri Penerima Piagam',
+                    class: award.student_class || 'Santri Berprestasi',
+                    gender: 'L',
+                    photo_url: award.student_photo_url || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+                    status: 'active',
+                    created_at: award.awarded_at || new Date().toISOString()
+                  };
 
                   return (
                     <div
@@ -829,7 +1115,7 @@ export const AwardsPage: React.FC = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-3">
                             <img
-                              src={student.photo_url}
+                              src={student.photo_url || award.student_photo_url || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80'}
                               alt={student.name}
                               className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shadow-sm"
                             />
@@ -843,9 +1129,23 @@ export const AwardsPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                            {award.certificate_no}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              {award.certificate_no}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Hapus piagam "${award.title}" untuk santri ${student.name}?`)) {
+                                  deleteAward(award.id);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus Piagam dari Arsip"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="p-3 bg-white dark:bg-slate-900/80 rounded-xl border border-amber-100 dark:border-slate-700">
@@ -869,15 +1169,17 @@ export const AwardsPage: React.FC = () => {
 
                         <div className="flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => sendAwardWhatsAppCongrats(award.id)}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors cursor-pointer"
                             title="Kirim ucapan tahniah via WhatsApp"
                           >
                             <Share2 className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setSelectedAwardForCert({ award, student })}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-sm transition-colors text-xs"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg shadow-sm transition-colors text-xs cursor-pointer"
                           >
                             <Printer className="w-3.5 h-3.5" />
                             Cetak Piagam
@@ -910,6 +1212,14 @@ export const AwardsPage: React.FC = () => {
           isOpen={true}
           onClose={() => setSelectedStudentForProfile(null)}
           onOpenCreateAward={handleOpenCreateForStudent}
+        />
+      )}
+
+      {/* Modal: Certificate Studio & Batch Print */}
+      {isCertificateStudioOpen && (
+        <CertificateStudioModal
+          isOpen={isCertificateStudioOpen}
+          onClose={() => setIsCertificateStudioOpen(false)}
         />
       )}
 

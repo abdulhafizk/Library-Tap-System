@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   QrCode,
   X,
@@ -10,11 +10,22 @@ import {
   User,
   ShieldCheck,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  FileText,
+  Loader2,
+  CheckCircle2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Student, RfidCard } from '../../types';
 import { useLibrary } from '../../context/LibraryContext';
 import { generateQrDataUrl } from '../../utils/qrUtils';
+import { 
+  downloadCardElementAsPng, 
+  downloadCardElementAsPdf,
+  generateCardCanvasPng,
+  generateCardBackCanvasPng,
+  downloadDataUrl 
+} from '../../utils/cardDownloadUtils';
 
 interface QrCardViewModalProps {
   isOpen: boolean;
@@ -35,11 +46,17 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [cardSide, setCardSide] = useState<'front' | 'back'>('front');
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+
+  const frontCardRef = useRef<HTMLDivElement>(null);
+  const backCardRef = useRef<HTMLDivElement>(null);
 
   const cardUid = student?.rfid_uid || card?.uid || (student ? `QR-${student.nis}` : 'QR-LIB-UNKNOWN');
 
   useEffect(() => {
     if (isOpen && cardUid) {
+      setDownloadNotice(null);
       generateQrDataUrl(cardUid, {
         width: 320,
         margin: 1,
@@ -58,6 +75,81 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const baseFileName = student 
+    ? `Kartu_Santri_${student.name.replace(/\s+/g, '_')}_${student.nis}`
+    : `Kartu_Perpustakaan_${cardUid}`;
+
+  // 1. Download Card as HD PNG (Exact dimensions & layout as preview)
+  const handleDownloadCardImage = async () => {
+    setIsDownloading(true);
+    setDownloadNotice(null);
+
+    try {
+      const targetElement = cardSide === 'front' ? frontCardRef.current : backCardRef.current;
+      const fileName = `${baseFileName}_${cardSide.toUpperCase()}.png`;
+      let success = false;
+
+      if (targetElement) {
+        success = await downloadCardElementAsPng(targetElement, fileName, 3);
+      }
+
+      if (!success) {
+        // Fallback to direct canvas rendering
+        if (cardSide === 'front') {
+          const canvasPng = await generateCardCanvasPng({
+            student,
+            cardUid,
+            note: card?.note,
+            settings
+          });
+          if (canvasPng) {
+            downloadDataUrl(canvasPng, fileName);
+            success = true;
+          }
+        } else {
+          const canvasPng = await generateCardBackCanvasPng({ settings });
+          if (canvasPng) {
+            downloadDataUrl(canvasPng, fileName);
+            success = true;
+          }
+        }
+      }
+
+      if (success) {
+        setDownloadNotice(`Kartu tampak ${cardSide === 'front' ? 'depan' : 'belakang'} berhasil diunduh (.PNG HD)!`);
+        setTimeout(() => setDownloadNotice(null), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to download card image:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // 2. Download Full Card PDF (Front & Back - Standard 85.6 x 54 mm)
+  const handleDownloadCardPdf = async () => {
+    setIsDownloading(true);
+    setDownloadNotice(null);
+
+    try {
+      if (frontCardRef.current) {
+        const success = await downloadCardElementAsPdf(
+          frontCardRef.current,
+          backCardRef.current,
+          `${baseFileName}.pdf`
+        );
+        if (success) {
+          setDownloadNotice('File PDF Kartu Perpustakaan berhasil diunduh (ukuran CR80)!');
+          setTimeout(() => setDownloadNotice(null), 4000);
+        }
+      }
+    } catch (err) {
+      console.error('PDF download error:', err);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleDownloadQr = () => {
@@ -138,6 +230,7 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
           {/* PHYSICAL CARD PREVIEW */}
           {cardSide === 'front' ? (
             <div 
+              ref={frontCardRef}
               className="w-full max-w-md mx-auto bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-xl border border-blue-800/60 relative overflow-hidden select-none"
               style={{ aspectRatio: '1.586 / 1' }}
             >
@@ -246,6 +339,7 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
           ) : (
             /* BACK OF CARD: Terms & Rules */
             <div 
+              ref={backCardRef}
               className="w-full max-w-md mx-auto bg-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-xl border border-slate-700 relative overflow-hidden select-none"
               style={{ aspectRatio: '1.586 / 1' }}
             >
@@ -263,6 +357,14 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
                 <span>{settings.institution_name}</span>
                 <span>JAM: {settings.open_time} - {settings.close_time} WIB</span>
               </div>
+            </div>
+          )}
+
+          {/* Download Notification Alert */}
+          {downloadNotice && (
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="flex-1 font-medium">{downloadNotice}</span>
             </div>
           )}
 
@@ -291,28 +393,57 @@ export const QrCardViewModal: React.FC<QrCardViewModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer"
           >
             Tutup
           </button>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {/* Download Full Card as PNG */}
+            <button
+              type="button"
+              onClick={handleDownloadCardImage}
+              disabled={isDownloading}
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
+              title="Download gambar kartu HD sesuai tampilan (CR80 standard)"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>Download Kartu (.PNG HD)</span>
+            </button>
+
+            {/* Download Card as PDF */}
+            <button
+              type="button"
+              onClick={handleDownloadCardPdf}
+              disabled={isDownloading}
+              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+              title="Download Kartu dalam format PDF siap cetak"
+            >
+              <FileText className="w-3.5 h-3.5 text-rose-500" />
+              <span>PDF</span>
+            </button>
+
             <button
               type="button"
               onClick={handleDownloadQr}
-              className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              title="Download Barcode QR Saja"
             >
-              <Download className="w-3.5 h-3.5 text-blue-600" />
-              <span>Download QR</span>
+              <QrCode className="w-3.5 h-3.5 text-blue-600" />
+              <span>QR Saja</span>
             </button>
 
             <button
               type="button"
               onClick={handlePrint}
-              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Cetak Kartu</span>
+              <span>Cetak</span>
             </button>
           </div>
         </div>

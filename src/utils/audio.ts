@@ -193,6 +193,114 @@ class SoundManager {
     }
   }
 
+  // Pleasant chime for new notifications & alerts
+  playNotificationSound() {
+    try {
+      this.init();
+      if (!this.audioCtx) return;
+
+      const now = this.audioCtx.currentTime;
+
+      // Note 1: E5 (659.25 Hz)
+      const osc1 = this.audioCtx.createOscillator();
+      const gain1 = this.audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now);
+      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc1.connect(gain1);
+      gain1.connect(this.audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.22);
+
+      // Note 2: B5 (987.77 Hz)
+      const osc2 = this.audioCtx.createOscillator();
+      const gain2 = this.audioCtx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(987.77, now + 0.08);
+      gain2.gain.setValueAtTime(0.001, now);
+      gain2.gain.setValueAtTime(0.16, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc2.connect(gain2);
+      gain2.connect(this.audioCtx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.45);
+    } catch {
+      // Graceful
+    }
+  }
+
+  // Celebratory fanfare chime for awards, badges, and wishlist approvals
+  playAwardFanfareSound() {
+    try {
+      this.init();
+      if (!this.audioCtx) return;
+
+      const now = this.audioCtx.currentTime;
+      const notes = [
+        { freq: 523.25, delay: 0, duration: 0.14 },    // C5
+        { freq: 659.25, delay: 0.10, duration: 0.14 }, // E5
+        { freq: 783.99, delay: 0.20, duration: 0.18 }, // G5
+        { freq: 1046.50, delay: 0.32, duration: 0.55 }, // C6
+      ];
+
+      notes.forEach(({ freq, delay, duration }) => {
+        if (!this.audioCtx) return;
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + delay);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.setValueAtTime(0.16, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + duration);
+
+        osc.connect(gain);
+        gain.connect(this.audioCtx.destination);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + duration);
+      });
+    } catch {
+      // Graceful
+    }
+  }
+
+  // Gentle alert for overdue book notices
+  playUrgentAlertSound() {
+    try {
+      this.init();
+      if (!this.audioCtx) return;
+
+      const now = this.audioCtx.currentTime;
+      const osc1 = this.audioCtx.createOscillator();
+      const gain1 = this.audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now); // D5
+      gain1.gain.setValueAtTime(0.15, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc1.connect(gain1);
+      gain1.connect(this.audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.25);
+
+      const osc2 = this.audioCtx.createOscillator();
+      const gain2 = this.audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(440, now + 0.18); // A4
+      gain2.gain.setValueAtTime(0.001, now);
+      gain2.gain.setValueAtTime(0.14, now + 0.18);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc2.connect(gain2);
+      gain2.connect(this.audioCtx.destination);
+      osc2.start(now + 0.18);
+      osc2.stop(now + 0.45);
+    } catch {
+      // Graceful
+    }
+  }
+
   // Convenient aliases
   playSuccess() {
     this.playCheckInSound();

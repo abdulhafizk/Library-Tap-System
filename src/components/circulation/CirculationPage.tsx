@@ -22,7 +22,9 @@ import {
   FileSpreadsheet,
   QrCode,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  BookPlus,
+  Camera
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { BookLoan, Book, Student } from '../../types';
@@ -30,8 +32,14 @@ import { LoanModal } from './LoanModal';
 import { ReturnModal } from './ReturnModal';
 import { ReceiptModal } from './ReceiptModal';
 import { BookFormModal } from './BookFormModal';
+import { WishlistReviewTab } from './WishlistReviewTab';
+import { CameraScannerModal } from '../common/CameraScannerModal';
 
-export const CirculationPage: React.FC = () => {
+interface CirculationPageProps {
+  initialTab?: 'loans' | 'books' | 'quick_scan' | 'wishlist';
+}
+
+export const CirculationPage: React.FC<CirculationPageProps> = ({ initialTab = 'loans' }) => {
   const { 
     loans, 
     books, 
@@ -41,6 +49,7 @@ export const CirculationPage: React.FC = () => {
     overdueLoansCount, 
     totalBooksCount, 
     totalTitlesCount,
+    pendingWishlistsCount,
     extendLoan,
     deleteBook,
     sendLoanWhatsAppReminder,
@@ -48,7 +57,7 @@ export const CirculationPage: React.FC = () => {
   } = useLibrary();
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<'loans' | 'books' | 'quick_scan'>('loans');
+  const [activeTab, setActiveTab] = useState<'loans' | 'books' | 'quick_scan' | 'wishlist'>(initialTab);
 
   // Search & Filters for Loans
   const [loanSearch, setLoanSearch] = useState<string>('');
@@ -66,9 +75,13 @@ export const CirculationPage: React.FC = () => {
 
   const [selectedLoan, setSelectedLoan] = useState<BookLoan | null>(null);
   const [selectedBookForEdit, setSelectedBookForEdit] = useState<Book | null>(null);
+  const [prefillBookData, setPrefillBookData] = useState<Partial<Book> | null>(null);
   const [preselectedBookId, setPreselectedBookId] = useState<string | undefined>();
   const [preselectedStudentId, setPreselectedStudentId] = useState<string | undefined>();
   const [receiptActionType, setReceiptActionType] = useState<'loan' | 'return'>('loan');
+
+  // Count pending santri wishlist requests
+  const pendingWishlistCount = pendingWishlistsCount;
 
   // Quick Scan Tab State
   const [quickStudentInput, setQuickStudentInput] = useState('');
@@ -76,6 +89,8 @@ export const CirculationPage: React.FC = () => {
   const [matchedQuickStudent, setMatchedQuickStudent] = useState<Student | null>(null);
   const [matchedQuickBook, setMatchedQuickBook] = useState<Book | null>(null);
   const [quickScanMessage, setQuickScanMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isCameraScanOpen, setIsCameraScanOpen] = useState(false);
+  const [cameraScanTarget, setCameraScanTarget] = useState<'student' | 'book'>('student');
 
   // Filtered Loans
   const filteredLoans = useMemo(() => {
@@ -182,6 +197,44 @@ export const CirculationPage: React.FC = () => {
     setQuickScanMessage({ type: 'error', text: `Buku dengan kode "${quickBookInput}" tidak ditemukan.` });
   };
 
+  // Handle Camera Scanner Scan Result
+  const handleCameraScanSuccess = (scannedValue: string) => {
+    setIsCameraScanOpen(false);
+    const clean = scannedValue.trim();
+    if (!clean) return;
+
+    if (cameraScanTarget === 'student') {
+      setQuickStudentInput(clean);
+      const upper = clean.toUpperCase();
+      const card = cards.find(c => c.uid === upper);
+      if (card && card.student_id) {
+        const s = students.find(std => std.id === card.student_id);
+        if (s) {
+          setMatchedQuickStudent(s);
+          setQuickScanMessage({ type: 'success', text: `Santri ${s.name} berhasil terdeteksi via QR/Kartu!` });
+          return;
+        }
+      }
+      const directStd = students.find(s => s.rfid_uid === upper || s.nis === clean || s.name.toLowerCase().includes(clean.toLowerCase()));
+      if (directStd) {
+        setMatchedQuickStudent(directStd);
+        setQuickScanMessage({ type: 'success', text: `Santri ${directStd.name} (${directStd.nis}) berhasil terdeteksi!` });
+        return;
+      }
+      setQuickScanMessage({ type: 'error', text: `Santri dengan kode "${clean}" tidak ditemukan.` });
+    } else {
+      setQuickBookInput(clean);
+      const upper = clean.toUpperCase();
+      const b = books.find(item => item.code.toUpperCase() === upper || item.isbn === clean || item.title.toLowerCase().includes(clean.toLowerCase()));
+      if (b) {
+        setMatchedQuickBook(b);
+        setQuickScanMessage({ type: 'success', text: `Buku "${b.title}" berhasil terdeteksi!` });
+        return;
+      }
+      setQuickScanMessage({ type: 'error', text: `Buku dengan kode "${clean}" tidak ditemukan.` });
+    }
+  };
+
   // Export CSV
   const handleExportCsv = () => {
     const csvRows = [
@@ -217,25 +270,25 @@ export const CirculationPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-20 lg:pb-8">
       {/* Top Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-blue-900/10 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-xl shadow-blue-900/10 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none transform translate-x-12"></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-xs text-blue-100 border border-white/20">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Modul Sirkulasi Perpustakaan Pesantren</span>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2 max-w-xl">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-white/15 backdrop-blur-xs text-blue-100 border border-white/20">
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              <span>Sirkulasi Perpustakaan</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">
               Sirkulasi Buku & Kitab
             </h1>
             <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed">
-              Kelola peminjaman dan pengembalian kitab santri secara otomatis. Dilengkapi notifikasi WhatsApp, slip peminjaman, dan pencatatan jatuh tempo.
+              Peminjaman & pengembalian kitab santri, slip struk, notifikasi WA, dan pantau jatuh tempo.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-2.5 w-full md:w-auto">
             <button
               id="btn-new-loan-top"
               onClick={() => {
@@ -243,10 +296,10 @@ export const CirculationPage: React.FC = () => {
                 setPreselectedStudentId(undefined);
                 setIsLoanModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs shadow-md transition-transform active:scale-95 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer min-h-[42px]"
             >
-              <Plus className="w-4 h-4" />
-              Pinjam Buku Baru
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Pinjam Baru</span>
             </button>
             <button
               id="btn-new-book-top"
@@ -254,81 +307,81 @@ export const CirculationPage: React.FC = () => {
                 setSelectedBookForEdit(null);
                 setIsBookModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600/80 hover:bg-blue-600 border border-white/20 text-white font-semibold text-xs transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 border border-white/20 text-white font-semibold text-xs active:scale-95 transition-all cursor-pointer min-h-[42px]"
             >
-              <BookOpen className="w-4 h-4" />
-              + Tambah Katalog Buku
+              <BookOpen className="w-4 h-4 shrink-0" />
+              <span>+ Katalog</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Metric 1 */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-            <ArrowUpRight className="w-6 h-6" />
+        <div className="p-3 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sedang Dipinjam</p>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{activeLoansCount}</h3>
-            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Buku beredar di santri</p>
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">Dipinjam</p>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{activeLoansCount}</h3>
+            <p className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate">Di santri</p>
           </div>
         </div>
 
         {/* Metric 2 */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-6 h-6" />
+        <div className="p-3 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Jatuh Tempo</p>
-            <h3 className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">{overdueLoansCount}</h3>
-            <p className="text-[10px] text-rose-500 font-medium">Perlu pengingat WA</p>
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">Jatuh Tempo</p>
+            <h3 className="text-lg sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">{overdueLoansCount}</h3>
+            <p className="text-[9px] sm:text-[10px] text-rose-500 font-medium truncate">Perlu WA</p>
           </div>
         </div>
 
         {/* Metric 3 */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-            <BookOpen className="w-6 h-6" />
+        <div className="p-3 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Judul Kitab</p>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{totalTitlesCount}</h3>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Judul dalam katalog</p>
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">Judul Kitab</p>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{totalTitlesCount}</h3>
+            <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Katalog</p>
           </div>
         </div>
 
         {/* Metric 4 */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <Layers className="w-6 h-6" />
+        <div className="p-3 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Eksemplar</p>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{totalBooksCount}</h3>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Fisik inventaris buku</p>
+          <div className="min-w-0">
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">Eksemplar</p>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800 dark:text-white mt-0.5">{totalBooksCount}</h3>
+            <p className="text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">Total fisik</p>
           </div>
         </div>
       </div>
 
       {/* Main Tabs Navigation */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl w-full sm:w-auto shrink-0">
           <button
             id="tab-btn-loans"
             onClick={() => setActiveTab('loans')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap min-h-[38px] ${
               activeTab === 'loans'
                 ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <ArrowUpRight className="w-4 h-4" />
-            <span>Peminjaman Aktif & Riwayat</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
+            <span>Peminjaman</span>
+            <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
               {loans.length}
             </span>
           </button>
@@ -336,15 +389,15 @@ export const CirculationPage: React.FC = () => {
           <button
             id="tab-btn-books"
             onClick={() => setActiveTab('books')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap min-h-[38px] ${
               activeTab === 'books'
                 ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Katalog Buku / Kitab</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold">
+            <span>Katalog</span>
+            <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold">
               {books.length}
             </span>
           </button>
@@ -352,24 +405,47 @@ export const CirculationPage: React.FC = () => {
           <button
             id="tab-btn-quickscan"
             onClick={() => setActiveTab('quick_scan')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap min-h-[38px] ${
               activeTab === 'quick_scan'
                 ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
-            <span>⚡ Meja Sirkulasi Cepat</span>
+            <span>⚡ Meja Cepat</span>
+          </button>
+
+          {/* TAB 4: USULAN BUKU & KITAB SANTRI (WISHLIST APPROVAL) */}
+          <button
+            id="tab-btn-wishlist"
+            onClick={() => setActiveTab('wishlist')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap min-h-[38px] ${
+              activeTab === 'wishlist'
+                ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-xs ring-1 ring-amber-500/30'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <BookPlus className="w-4 h-4 text-amber-500" />
+            <span>Usulan Santri</span>
+            {pendingWishlistCount > 0 ? (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-slate-950 font-black animate-pulse">
+                {pendingWishlistCount}
+              </span>
+            ) : (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">
+                ✓
+              </span>
+            )}
           </button>
         </div>
 
         {/* Export & Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end">
           <button
             onClick={handleExportCsv}
             id="btn-export-circulation-csv"
             title="Download CSV Laporan Sirkulasi"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer min-h-[38px]"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export CSV</span>
@@ -379,39 +455,44 @@ export const CirculationPage: React.FC = () => {
 
       {/* TAB 1: LOANS & TRANSACTION HISTORY */}
       {activeTab === 'loans' && (
-        <div className="space-y-4">
+        <div className="space-y-3.5 sm:space-y-4">
           {/* Controls & Search */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
             {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cari santri, NIS, judul buku, atau kode pinjam..."
+                placeholder="Cari santri, NIS, judul buku, atau kode..."
                 value={loanSearch}
                 onChange={(e) => setLoanSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500 min-h-[40px]"
               />
             </div>
 
             {/* Status Filter Buttons */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+            <div className="overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1.5 pb-1 sm:pb-0 shrink-0">
               {[
-                { id: 'all', label: 'Semua Status' },
-                { id: 'borrowed', label: 'Sedang Dipinjam' },
-                { id: 'overdue', label: 'Jatuh Tempo' },
-                { id: 'returned', label: 'Dikembalikan' },
+                { id: 'all', label: 'Semua', count: loans.length },
+                { id: 'borrowed', label: 'Dipinjam', count: activeLoansCount },
+                { id: 'overdue', label: 'Jatuh Tempo', count: overdueLoansCount },
+                { id: 'returned', label: 'Dikembalikan', count: loans.filter(l => l.status === 'returned').length },
               ].map(f => (
                 <button
                   key={f.id}
                   onClick={() => setLoanStatusFilter(f.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap min-h-[38px] transition-colors cursor-pointer flex items-center gap-1.5 ${
                     loanStatusFilter === f.id
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {f.label}
+                  <span>{f.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    loanStatusFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {f.count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -554,7 +635,7 @@ export const CirculationPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Loans Card List (Mobile Smartphone View) */}
+          {/* Loans Card List (Mobile Smartphone View - Optimized Touch Layout) */}
           <div className="sm:hidden space-y-3">
             {filteredLoans.length === 0 ? (
               <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400">
@@ -571,20 +652,27 @@ export const CirculationPage: React.FC = () => {
                 const isOverdue = loan.status === 'borrowed' && dueDate < now;
                 const isReturned = loan.status === 'returned';
 
+                // Calculate difference in days
+                const diffTime = dueDate.getTime() - now.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
                 return (
                   <div 
                     key={`mobile-loan-${loan.id}`}
-                    className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3"
+                    className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3"
                   >
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                      <div>
-                        <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
-                          {loan.loan_code}
-                        </span>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+                    {/* Header: Loan code & Status Badge */}
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md">
+                            {loan.loan_code}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-1 truncate">
                           {student?.name || 'Santri'}
                         </h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                           NIS: {student?.nis || '-'} • Kelas {student?.class || '-'}
                         </p>
                       </div>
@@ -597,71 +685,76 @@ export const CirculationPage: React.FC = () => {
                       ) : isOverdue ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400 border border-rose-200 animate-pulse shrink-0">
                           <AlertTriangle className="w-3 h-3" />
-                          Terlambat
+                          Terlambat {Math.abs(diffDays)}h
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border border-blue-200 shrink-0">
                           <Clock className="w-3 h-3" />
-                          Dipinjam
+                          {diffDays === 0 ? 'Hari ini' : `Sisa ${diffDays}h`}
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-1 text-xs">
+                    {/* Book & Schedule Details */}
+                    <div className="space-y-1.5 text-xs bg-slate-50/70 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                       <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         <BookOpen className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                         <span className="line-clamp-1">{book?.title || 'Kitab'}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                        <span>Pinjam: {new Date(loan.borrow_date).toLocaleDateString('id-ID', { dateStyle: 'short' })}</span>
-                        <span className={`font-semibold ${isOverdue ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}>
-                          Tempo: {new Date(loan.due_date).toLocaleDateString('id-ID', { dateStyle: 'short' })}
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                        <span>Pinjam: {new Date(loan.borrow_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                        <span className={`font-semibold ${isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                          Tempo: {new Date(loan.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                         </span>
                       </div>
                     </div>
 
-                    {/* Action Buttons for Mobile */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                      {!isReturned ? (
-                        <>
-                          <button
-                            onClick={() => handleOpenReturn(loan)}
-                            className="py-2 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs active:scale-95 transition-transform"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Kembalikan
-                          </button>
+                    {/* Action Buttons for Mobile HP */}
+                    {!isReturned ? (
+                      <div className="space-y-2 pt-1">
+                        {/* Primary Button: Return */}
+                        <button
+                          onClick={() => handleOpenReturn(loan)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer min-h-[42px]"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Kembalikan Kitab / Buku</span>
+                        </button>
+
+                        {/* Secondary 3-Col Action Bar */}
+                        <div className="grid grid-cols-3 gap-1.5">
                           <button
                             onClick={() => extendLoan(loan.id, 7)}
-                            className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                            className="py-2 px-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform min-h-[38px]"
                           >
-                            +7 Hari
+                            <RefreshCw className="w-3 h-3" />
+                            <span>+7 Hari</span>
                           </button>
                           <button
                             onClick={() => sendLoanWhatsAppReminder(loan.id)}
-                            className="py-2 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                            className="py-2 px-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform min-h-[38px]"
                           >
-                            <Share2 className="w-3.5 h-3.5" />
-                            Kirim WA
+                            <Share2 className="w-3 h-3" />
+                            <span>Kirim WA</span>
                           </button>
                           <button
                             onClick={() => handleOpenReceipt(loan, 'loan')}
-                            className="py-2 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
+                            className="py-2 px-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform min-h-[38px]"
                           >
-                            <Printer className="w-3.5 h-3.5" />
-                            Struk
+                            <Printer className="w-3 h-3" />
+                            <span>Struk</span>
                           </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenReceipt(loan, 'return')}
-                          className="col-span-2 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Cetak Bukti Pengembalian
-                        </button>
-                      )}
-                    </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleOpenReceipt(loan, 'return')}
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[40px]"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Cetak Bukti Pengembalian / Struk</span>
+                      </button>
+                    )}
                   </div>
                 );
               })
@@ -674,23 +767,23 @@ export const CirculationPage: React.FC = () => {
       {activeTab === 'books' && (
         <div className="space-y-4">
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-            <div className="relative flex-1 max-w-md">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Cari judul kitab, pengarang, kode buku, atau rak..."
                 value={bookSearch}
                 onChange={(e) => setBookSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 min-h-[40px]"
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <select
                 value={bookCategoryFilter}
                 onChange={(e) => setBookCategoryFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 sm:flex-initial px-3 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 min-h-[40px]"
               >
                 <option value="all">Semua Kategori Kitab</option>
                 {categoriesList.map(cat => (
@@ -703,10 +796,10 @@ export const CirculationPage: React.FC = () => {
                   setSelectedBookForEdit(null);
                   setIsBookModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer min-h-[40px] whitespace-nowrap active:scale-95"
               >
                 <Plus className="w-4 h-4" />
-                Tambah Buku
+                <span>Tambah Buku</span>
               </button>
             </div>
           </div>
@@ -770,7 +863,7 @@ export const CirculationPage: React.FC = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2 pt-3.5 mt-3.5 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => {
@@ -778,14 +871,14 @@ export const CirculationPage: React.FC = () => {
                           setIsBookModalOpen(true);
                         }}
                         title="Edit Data Buku"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors"
+                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center cursor-pointer"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => deleteBook(book.id)}
                         title="Hapus Buku"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors min-h-[38px] min-w-[38px] flex items-center justify-center cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -798,10 +891,10 @@ export const CirculationPage: React.FC = () => {
                         setPreselectedStudentId(undefined);
                         setIsLoanModalOpen(true);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white shadow-xs transition-all cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white shadow-xs transition-all cursor-pointer min-h-[38px] active:scale-95"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Pinjamkan
+                      <span>{isAvailable ? 'Pinjamkan' : 'Stok Habis'}</span>
                     </button>
                   </div>
                 </div>
@@ -813,17 +906,21 @@ export const CirculationPage: React.FC = () => {
 
       {/* TAB 3: QUICK SCAN CIRCULATION DESK */}
       {activeTab === 'quick_scan' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Left: Input & Tap simulator */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6">
+            <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
                   <Radio className="w-5 h-5 animate-pulse" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Meja Sirkulasi Cepat (RFID & Barcode)</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Scan kartu santri lalu scan kode barcode kitab untuk transaksi instan</p>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                    Meja Sirkulasi Cepat (RFID & Barcode)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Scan kartu santri lalu scan barcode kitab untuk transaksi instan di HP atau Desktop
+                  </p>
                 </div>
               </div>
 
@@ -848,18 +945,31 @@ export const CirculationPage: React.FC = () => {
                     <Radio className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      placeholder="Tempel kartu RFID atau ketik NIS santri..."
+                      placeholder="Tempel kartu RFID atau ketik NIS..."
                       value={quickStudentInput}
                       onChange={(e) => setQuickStudentInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleQuickStudentLookup();
                       }}
-                      className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                      className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-emerald-500 min-h-[42px]"
                     />
                   </div>
                   <button
+                    type="button"
+                    onClick={() => {
+                      setCameraScanTarget('student');
+                      setIsCameraScanOpen(true);
+                    }}
+                    title="Scan dengan Kamera HP"
+                    className="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1 min-h-[42px] shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span className="hidden sm:inline">Kamera</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleQuickStudentLookup}
-                    className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer min-h-[42px] shrink-0 active:scale-95"
                   >
                     Deteksi
                   </button>
@@ -868,11 +978,11 @@ export const CirculationPage: React.FC = () => {
                 {matchedQuickStudent && (
                   <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-900 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
+                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
                         {matchedQuickStudent.name.charAt(0)}
                       </div>
-                      <div>
-                        <p className="font-bold text-xs text-slate-900 dark:text-white">{matchedQuickStudent.name}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{matchedQuickStudent.name}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">NIS: {matchedQuickStudent.nis} • Kelas: {matchedQuickStudent.class}</p>
                       </div>
                     </div>
@@ -881,7 +991,7 @@ export const CirculationPage: React.FC = () => {
                         setMatchedQuickStudent(null);
                         setQuickStudentInput('');
                       }}
-                      className="text-[11px] text-rose-500 hover:underline"
+                      className="text-[11px] text-rose-500 hover:underline p-1 shrink-0"
                     >
                       Batal
                     </button>
@@ -905,12 +1015,25 @@ export const CirculationPage: React.FC = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleQuickBookLookup();
                       }}
-                      className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                      className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono focus:outline-hidden focus:ring-2 focus:ring-emerald-500 min-h-[42px]"
                     />
                   </div>
                   <button
+                    type="button"
+                    onClick={() => {
+                      setCameraScanTarget('book');
+                      setIsCameraScanOpen(true);
+                    }}
+                    title="Scan dengan Kamera HP"
+                    className="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-1 min-h-[42px] shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4 text-indigo-600" />
+                    <span className="hidden sm:inline">Kamera</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleQuickBookLookup}
-                    className="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer min-h-[42px] shrink-0 active:scale-95"
                   >
                     Cari Buku
                   </button>
@@ -919,11 +1042,11 @@ export const CirculationPage: React.FC = () => {
                 {matchedQuickBook && (
                   <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-900 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
                         <BookOpen className="w-4 h-4" />
                       </div>
-                      <div>
-                        <p className="font-bold text-xs text-slate-900 dark:text-white">{matchedQuickBook.title}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{matchedQuickBook.title}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">Kode: {matchedQuickBook.code} • Sisa: {matchedQuickBook.available_stock} eks</p>
                       </div>
                     </div>
@@ -932,7 +1055,7 @@ export const CirculationPage: React.FC = () => {
                         setMatchedQuickBook(null);
                         setQuickBookInput('');
                       }}
-                      className="text-[11px] text-rose-500 hover:underline"
+                      className="text-[11px] text-rose-500 hover:underline p-1 shrink-0"
                     >
                       Batal
                     </button>
@@ -942,31 +1065,56 @@ export const CirculationPage: React.FC = () => {
 
               {/* Action Button */}
               <div className="pt-2">
-                <button
-                  disabled={!matchedQuickStudent || !matchedQuickBook}
-                  onClick={() => {
-                    if (matchedQuickStudent && matchedQuickBook) {
-                      setPreselectedStudentId(matchedQuickStudent.id);
-                      setPreselectedBookId(matchedQuickBook.id);
-                      setIsLoanModalOpen(true);
-                    }
-                  }}
-                  id="btn-process-quick-loan"
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Lanjutkan Proses Peminjaman Instan
-                </button>
+                {(() => {
+                  const existingLoan = matchedQuickStudent && matchedQuickBook 
+                    ? loans.find(l => l.student_id === matchedQuickStudent.id && l.book_id === matchedQuickBook.id && l.status === 'borrowed')
+                    : null;
+
+                  if (existingLoan) {
+                    return (
+                      <button
+                        onClick={() => handleOpenReturn(existingLoan)}
+                        id="btn-process-quick-return"
+                        className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px] active:scale-95"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>⚡ Kembalikan Kitab Ini Sekarang (1-Tap)</span>
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <button
+                      disabled={!matchedQuickStudent || !matchedQuickBook || (matchedQuickBook && matchedQuickBook.available_stock <= 0)}
+                      onClick={() => {
+                        if (matchedQuickStudent && matchedQuickBook) {
+                          setPreselectedStudentId(matchedQuickStudent.id);
+                          setPreselectedBookId(matchedQuickBook.id);
+                          setIsLoanModalOpen(true);
+                        }
+                      }}
+                      id="btn-process-quick-loan"
+                      className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px] active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>
+                        {matchedQuickBook && matchedQuickBook.available_stock <= 0 
+                          ? 'Stok Kitab Ini Sedang Kosong'
+                          : 'Lanjutkan Proses Peminjaman Instan'}
+                      </span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
 
           {/* Right: Active loans for scanned student */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
               <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-600" />
-                Daftar Buku yang Sedang Dipinjam Santri Ini
+                <span>Pinjaman Aktif Santri Terdeteksi</span>
               </h4>
 
               {matchedQuickStudent ? (
@@ -987,16 +1135,16 @@ export const CirculationPage: React.FC = () => {
                         const bk = books.find(b => b.id === loan.book_id);
                         const isOver = new Date(loan.due_date) < new Date();
                         return (
-                          <div key={loan.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                            <div className="min-w-0 pr-2">
+                          <div key={loan.id} className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
                               <p className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{bk?.title}</p>
                               <p className={`text-[10px] ${isOver ? 'text-rose-500 font-bold' : 'text-slate-400'}`}>
-                                Tempo: {new Date(loan.due_date).toLocaleDateString('id-ID')} {isOver && '(Terlambat)'}
+                                Tempo: {new Date(loan.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} {isOver && '(Terlambat)'}
                               </p>
                             </div>
                             <button
                               onClick={() => handleOpenReturn(loan)}
-                              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0"
+                              className="px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0 min-h-[36px] active:scale-95"
                             >
                               Kembalikan
                             </button>
@@ -1009,12 +1157,23 @@ export const CirculationPage: React.FC = () => {
               ) : (
                 <div className="p-8 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
                   <User className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs font-medium">Scan atau pilih santri terlebih dahulu di sebelah kiri</p>
+                  <p className="text-xs font-medium">Scan kartu atau pilih santri terlebih dahulu</p>
                 </div>
               )}
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 4: USULAN BUKU SANTRI (WISHLIST APPROVAL & REVIEW) */}
+      {activeTab === 'wishlist' && (
+        <WishlistReviewTab
+          onOpenBookCatalogModal={(initialData) => {
+            setSelectedBookForEdit(null);
+            setPrefillBookData(initialData);
+            setIsBookModalOpen(true);
+          }}
+        />
       )}
 
       {/* MODALS */}
@@ -1062,8 +1221,19 @@ export const CirculationPage: React.FC = () => {
         onClose={() => {
           setIsBookModalOpen(false);
           setSelectedBookForEdit(null);
+          setPrefillBookData(null);
         }}
         editBook={selectedBookForEdit}
+        initialValues={prefillBookData}
+      />
+
+      <CameraScannerModal
+        isOpen={isCameraScanOpen}
+        onClose={() => setIsCameraScanOpen(false)}
+        onScan={handleCameraScanSuccess}
+        title={cameraScanTarget === 'student' ? 'Scan Kartu RFID / Barcode Santri' : 'Scan Barcode Kitab / Buku'}
+        description={cameraScanTarget === 'student' ? 'Arahkan kamera HP ke QR Code kartu santri atau barcode NIS' : 'Arahkan kamera HP ke barcode atau nomor kode kitab'}
+        placeholder={cameraScanTarget === 'student' ? 'Atau ketik NIS santri...' : 'Atau ketik kode kitab...'}
       />
     </div>
   );

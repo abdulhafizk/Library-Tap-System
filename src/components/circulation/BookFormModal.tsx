@@ -9,6 +9,7 @@ interface BookFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   editBook?: Book | null;
+  initialValues?: Partial<Book> | null;
 }
 
 const CATEGORIES = [
@@ -27,7 +28,8 @@ const CATEGORIES = [
 export const BookFormModal: React.FC<BookFormModalProps> = ({
   isOpen,
   onClose,
-  editBook
+  editBook,
+  initialValues
 }) => {
   const { addBook, updateBook } = useLibrary();
 
@@ -48,6 +50,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [scannedFeedback, setScannedFeedback] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (editBook) {
@@ -63,6 +66,21 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
         total_stock: editBook.total_stock,
         available_stock: editBook.available_stock,
         description: editBook.description || ''
+      });
+    } else if (initialValues) {
+      const randomCodeNum = Math.floor(100 + Math.random() * 900);
+      setFormData({
+        code: initialValues.code || `KTB-${randomCodeNum}`,
+        title: initialValues.title || '',
+        author: initialValues.author || '',
+        publisher: initialValues.publisher || '',
+        category: initialValues.category || CATEGORIES[0],
+        isbn: initialValues.isbn || '',
+        publish_year: initialValues.publish_year || new Date().getFullYear(),
+        shelf_location: initialValues.shelf_location || 'Rak A-01',
+        total_stock: initialValues.total_stock || 3,
+        available_stock: initialValues.available_stock || 3,
+        description: initialValues.description || ''
       });
     } else {
       const randomCodeNum = Math.floor(100 + Math.random() * 900);
@@ -82,7 +100,7 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
     }
     setErrors({});
     setScannedFeedback(null);
-  }, [editBook, isOpen]);
+  }, [editBook, initialValues, isOpen]);
 
   const handleCameraScanCode = (scanned: string) => {
     const clean = scanned.trim();
@@ -115,48 +133,55 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate() || isSubmitting) return;
 
-    if (editBook) {
-      updateBook(editBook.id, formData);
-    } else {
-      addBook(formData);
+    setIsSubmitting(true);
+    try {
+      if (editBook) {
+        await updateBook(editBook.id, formData);
+      } else {
+        await addBook(formData);
+      }
+      onClose();
+    } catch (err) {
+      console.error('Submit book error:', err);
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/60 backdrop-blur-xs cursor-pointer"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] cursor-default"
+        className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] cursor-default"
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs">
-              <BookPlus className="w-5 h-5 text-white" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-white/20 backdrop-blur-xs">
+              <BookPlus className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">{editBook ? 'Edit Data Buku / Kitab' : 'Tambah Buku / Kitab Baru'}</h3>
-              <p className="text-xs text-blue-100">Katalog koleksi perpustakaan & inventaris fisik</p>
+              <h3 className="font-bold text-sm sm:text-base">{editBook ? 'Edit Data Buku / Kitab' : 'Tambah Buku / Kitab Baru'}</h3>
+              <p className="text-[11px] sm:text-xs text-blue-100">Katalog koleksi perpustakaan & inventaris fisik</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs text-slate-800 dark:text-slate-200">
+        <form onSubmit={handleSubmit} className="p-3.5 sm:p-6 overflow-y-auto space-y-3.5 sm:space-y-4 text-xs text-slate-800 dark:text-slate-200">
           {scannedFeedback && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 rounded-xl text-emerald-800 dark:text-emerald-200 flex items-center gap-2 font-medium">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -345,21 +370,29 @@ export const BookFormModal: React.FC<BookFormModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            className="px-3.5 sm:px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors min-h-[40px] cursor-pointer"
           >
             Batal
           </button>
           <button
             type="button"
             onClick={handleSubmit}
+            disabled={isSubmitting}
             id="btn-save-book"
-            className="px-5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+            className="px-4 sm:px-5 py-2.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-md shadow-blue-500/20 transition-all cursor-pointer flex items-center justify-center gap-2 min-h-[40px] active:scale-95"
           >
-            {editBook ? 'Simpan Perubahan' : 'Tambah ke Katalog'}
+            {isSubmitting ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              editBook ? 'Simpan Perubahan' : 'Tambah ke Katalog'
+            )}
           </button>
         </div>
       </div>
