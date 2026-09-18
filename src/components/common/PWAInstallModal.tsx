@@ -14,7 +14,8 @@ import {
   ExternalLink,
   ShieldCheck, 
   Wifi,
-  AlertCircle
+  AlertCircle,
+  Bell
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
@@ -387,6 +388,9 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ isOpen, onClos
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
                     <ShieldCheck className="w-3 h-3" /> Antrean Darurat Failover
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                    <Bell className="w-3 h-3" /> Web Push API Real-Time
                   </span>
                 </div>
               </div>

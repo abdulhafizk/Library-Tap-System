@@ -90,6 +90,8 @@ export interface AppUser {
   created_at: string;
   student_id?: string; // Relasi ID ke Santri
   santri_id?: string; // Alias kompatibilitas
+  is_first_login?: boolean; // True jika santri belum pernah mengubah password bawaan
+  password_changed?: boolean; // True jika santri sudah mengubah password bawaan
 }
 
 import { WhatsAppNotificationConfig, WhatsAppLog } from './utils/whatsappUtils';

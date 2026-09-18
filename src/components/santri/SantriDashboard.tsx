@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   LogOut, 
   GraduationCap, 
@@ -26,7 +26,8 @@ import {
   Bookmark,
   User,
   Layers,
-  Lock
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
 import { Student, SantriMenuKey, SantriMenu } from '../../types';
@@ -40,6 +41,9 @@ import { SantriAwardsTab } from './SantriAwardsTab';
 import { SantriCatalogTab } from './SantriCatalogTab';
 import { SantriNotificationToast } from './SantriNotificationToast';
 import { SantriNotificationCenter } from './SantriNotificationCenter';
+import { SantriWebPushPrompt } from './SantriWebPushPrompt';
+import { SantriChangePasswordModal } from './SantriChangePasswordModal';
+import { webPushManager } from '../../utils/webPushManager';
 import { UnderDevelopmentOverlay } from './UnderDevelopmentOverlay';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 import {
@@ -98,6 +102,20 @@ export const SantriDashboard: React.FC = () => {
   const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
   const [refreshNotifsKey, setRefreshNotifsKey] = useState(0);
   const [dismissedToastIds, setDismissedToastIds] = useState<Set<string>>(new Set());
+
+  // State untuk modal ganti kata sandi
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isFirstLoginChange, setIsFirstLoginChange] = useState(false);
+
+  // Deteksi otomatis jika santri pertama kali login atau masih menggunakan password default 'akunsantri'
+  useEffect(() => {
+    if (!currentUser) return;
+    const isDefaultPass = !currentUser.password_changed && (currentUser.password === 'akunsantri' || currentUser.is_first_login);
+    if (isDefaultPass) {
+      setIsFirstLoginChange(true);
+      setIsPasswordModalOpen(true);
+    }
+  }, [currentUser]);
 
   // Find the dynamically connected Santri record
   const connectedStudent: Student = useMemo(() => {
@@ -185,6 +203,18 @@ export const SantriDashboard: React.FC = () => {
       n => !n.read && !dismissedToastIds.has(n.id) && !isToastDismissed(connectedStudent.id, n.id)
     );
   }, [notifications, dismissedToastIds, connectedStudent.id]);
+
+  // Listen to Web Push notification clicks navigating to specific tabs
+  useEffect(() => {
+    const handleNavEvent = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      if (custom.detail) {
+        setActiveTab(custom.detail as SantriMenuKey);
+      }
+    };
+    window.addEventListener('santri_navigate_tab', handleNavEvent);
+    return () => window.removeEventListener('santri_navigate_tab', handleNavEvent);
+  }, []);
 
   // Sorted list of santri menus from LibraryContext
   const sortedSantriMenus = useMemo(() => {
@@ -290,6 +320,7 @@ export const SantriDashboard: React.FC = () => {
         actionTab: 'wishlist',
         actionLabel: 'Lihat Usulan'
       });
+      webPushManager.notifyWishlistStatus("Fathul Mu'in Syarah Qurratul 'Ain", 'approved').catch(() => {});
     } else if (type === 'overdue') {
       addCustomSantriNotification(connectedStudent.id, {
         category: 'overdue',
@@ -300,6 +331,7 @@ export const SantriDashboard: React.FC = () => {
         actionTab: 'loans',
         actionLabel: 'Cek Pinjaman'
       });
+      webPushManager.notifyLoanStatus('Riyadhus Shalihin (Jilid 1)', 'overdue').catch(() => {});
     } else if (type === 'award') {
       addCustomSantriNotification(connectedStudent.id, {
         category: 'award',
@@ -310,6 +342,7 @@ export const SantriDashboard: React.FC = () => {
         actionTab: 'awards',
         actionLabel: 'Lihat Piagam & Lencana'
       });
+      webPushManager.notifyAwardReceived('Santri Terdisiplin Membaca', 'Bulan Ini', 'PGM-2026-LIT-089').catch(() => {});
     }
     setRefreshNotifsKey(k => k + 1);
   };
@@ -612,6 +645,9 @@ export const SantriDashboard: React.FC = () => {
                         </div>
                       </div>
                     </motion.div>
+
+                    {/* Web Push Notification Activation Prompt */}
+                    <SantriWebPushPrompt studentName={santriName} />
 
                     {/* Real-time Dynamic Alerts Banner Section for Santri */}
                     <div className="space-y-3">
@@ -951,6 +987,43 @@ export const SantriDashboard: React.FC = () => {
                         <span className="text-emerald-400 font-bold text-sm">Aktif</span>
                       </div>
                     </div>
+
+                    {/* Keamanan Akun & Ganti Password */}
+                    <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <KeyRound className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                            Keamanan Akun & Kata Sandi
+                            {currentUser?.password_changed ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Sudah Diubah
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Masih Bawaan
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Ubah kata sandi akun santri Anda secara berkala agar akun dan rekap peminjaman Anda tetap aman.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFirstLoginChange(false);
+                          setIsPasswordModalOpen(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Ubah Kata Sandi</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1158,6 +1231,19 @@ export const SantriDashboard: React.FC = () => {
         onNavigateTab={tab => setActiveTab(tab as SantriMenuKey)}
         onSimulateNotification={handleSimulateNotification}
         onClearSimulations={handleClearSimulations}
+      />
+
+      {/* Modal Wajib Ganti Password Pertama Kali & Menu Ubah Password Santri */}
+      <SantriChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        isFirstLogin={isFirstLoginChange}
+        studentNis={santriNis}
+        studentName={santriName}
+        onClose={() => setIsPasswordModalOpen(false)}
+        onSuccess={() => {
+          setIsPasswordModalOpen(false);
+          setIsFirstLoginChange(false);
+        }}
       />
     </div>
   );

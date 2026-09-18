@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { SantriNotification } from '../../types';
 import { soundManager } from '../../utils/audio';
+import { webPushManager } from '../../utils/webPushManager';
 
 interface SantriNotificationToastProps {
   notifications: SantriNotification[];
@@ -35,7 +36,18 @@ export const SantriNotificationToast: React.FC<SantriNotificationToastProps> = (
   const [isAudioMuted, setIsAudioMuted] = useState(!soundEnabled);
 
   useEffect(() => {
-    if (!activeAlert || isAudioMuted) return;
+    if (!activeAlert) return;
+
+    // Trigger system Web Push notification if browser permission is granted
+    webPushManager.showNotification({
+      title: activeAlert.title,
+      body: activeAlert.message + (activeAlert.detail ? ` (${activeAlert.detail})` : ''),
+      tag: activeAlert.id,
+      data: { tab: activeAlert.actionTab },
+      requireInteraction: activeAlert.priority === 'urgent' || activeAlert.priority === 'celebration',
+    }).catch(() => {});
+
+    if (isAudioMuted) return;
 
     if (activeAlert.priority === 'urgent') {
       soundManager.playUrgentAlertSound();

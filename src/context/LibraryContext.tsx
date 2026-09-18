@@ -37,6 +37,7 @@ import {
 } from '../data/santriMenuData';
 import { INITIAL_AWARDS } from '../utils/gamificationUtils';
 import { soundManager } from '../utils/audio';
+import { webPushManager } from '../utils/webPushManager';
 import { 
   defaultWhatsAppConfig, 
   sendWhatsAppMessage, 
@@ -192,6 +193,8 @@ interface LibraryContextType {
   // Authentication & User Management actions
   login: (identity: string, pass: string) => Promise<{ success: boolean; message: string; user?: AppUser }>;
   loginSantri: (nis: string, pass: string) => Promise<{ success: boolean; message: string; user?: AppUser }>;
+  changeSantriPassword: (studentIdOrUserId: string, newPass: string, oldPass?: string) => { success: boolean; message: string };
+  resetSantriPasswordToDefault: (studentIdOrUserId: string) => { success: boolean; message: string; defaultPassword?: string };
   logout: () => void;
   addUser: (userData: Omit<AppUser, 'id' | 'created_at'>) => { success: boolean; message: string; user?: AppUser };
   updateUser: (id: string, updates: Partial<AppUser>) => { success: boolean; message: string };
@@ -607,7 +610,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [users]);
 
   // Otomatis sinkronisasi akun Santri untuk setiap data Santri yang ada di sistem
-  // Role: SANTRI, Username: NIS, Password: Kode Kartu RFID
+  // Role: SANTRI, Username: NIS, Default Password: akunsantri (atau Kode RFID)
   useEffect(() => {
     if (!students || students.length === 0) return;
     setUsers(prev => {
@@ -617,7 +620,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       students.forEach(student => {
         const studentNis = (student.nis || '').trim();
         if (!studentNis) return;
-        const expectedPassword = (student.rfid_uid || `RFID-${studentNis}`).trim().toUpperCase();
+        const defaultPassword = 'akunsantri';
 
         const existingIdx = updated.findIndex(u =>
           u.student_id === student.id ||
@@ -627,9 +630,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         if (existingIdx >= 0) {
           const u = updated[existingIdx];
+          // Jika santri belum pernah ganti password dan passwordnya bukan akunsantri / RFID, pastikan password default
+          const currentPassword = u.password || defaultPassword;
+          const hasChangedPassword = !!u.password_changed;
+
           if (
             u.username !== studentNis ||
-            u.password !== expectedPassword ||
             u.name !== student.name ||
             u.student_id !== student.id ||
             u.santri_id !== student.id ||
@@ -640,7 +646,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               student_id: student.id,
               santri_id: student.id,
               username: studentNis,
-              password: expectedPassword,
+              password: currentPassword,
+              password_changed: hasChangedPassword,
+              is_first_login: !hasChangedPassword,
               name: student.name,
               avatar: student.photo_url || u.avatar,
               role: 'SANTRI',
@@ -652,7 +660,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           updated.push({
             id: `usr-santri-${student.id}`,
             username: studentNis,
-            password: expectedPassword,
+            password: defaultPassword,
+            password_changed: false,
+            is_first_login: true,
             role: 'SANTRI',
             name: student.name,
             email: `${studentNis.toLowerCase()}@santri.pesantren.id`,
@@ -1109,6 +1119,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             return [item, ...prev];
           });
+
+          // Trigger Web Push Notification if this affects currently active student
+          if (currentUser?.role === 'santri' && (item.student_id === currentUser.id || currentUser.email.includes(item.student_id))) {
+            const bookItem = books.find(b => b.id === item.book_id);
+            const title = bookItem?.title || 'Buku Perpustakaan';
+            if (item.status === 'returned') {
+              webPushManager.notifyLoanStatus(title, 'returned').catch(() => {});
+            } else if (item.status === 'overdue') {
+              webPushManager.notifyLoanStatus(title, 'overdue').catch(() => {});
+            } else if (event === 'INSERT') {
+              webPushManager.notifyLoanStatus(title, 'borrowed').catch(() => {});
+            }
+          }
         }
       },
       onUserChange: (event, newRow, oldRow) => {
@@ -1170,6 +1193,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             return [item, ...prev];
           });
+
+          // Web Push Notification for Santri when award is created or updated
+          if (currentUser?.role === 'santri' && (item.student_id === currentUser.id || currentUser.email.includes(item.student_id) || currentUser.name === item.student_name)) {
+            webPushManager.notifyAwardReceived(item.title, item.period, item.certificate_no).catch(() => {});
+          }
         }
       },
       onWishlistChange: (event, newRow, oldRow) => {
@@ -1204,6 +1232,13 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             return [item, ...prev];
           });
+
+          // Web Push Notification for Santri on wishlist status update
+          if (currentUser?.role === 'santri' && (item.student_id === currentUser.id || currentUser.email.includes(item.student_id) || currentUser.name === item.student_name)) {
+            if (item.status === 'approved' || item.status === 'available' || item.status === 'rejected') {
+              webPushManager.notifyWishlistStatus(item.title, item.status, item.staff_notes).catch(() => {});
+            }
+          }
         }
       },
       onSantriMenuChange: (_event, newRow) => {
@@ -3512,17 +3547,23 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return { success: false, message: 'Akun Santri sedang dinonaktifkan oleh Administrator.' };
     }
 
-    // Validasi Password = Kode Kartu RFID
-    const rfidMatch = (user.password && user.password.trim().toUpperCase() === trimmedPass.toUpperCase()) || user.password === trimmedPass;
-    if (!rfidMatch) {
-      return { success: false, message: 'NIS atau password salah.' };
-    }
-
+    // Validasi Password:
+    // 1. Password yang tersimpan di user (contoh default 'akunsantri' atau password baru yang diubah santri)
+    // 2. Fallback kode RFID (agar santri tetap bisa login via kode RFID fisiknya jika lupa password default)
     const connectedStudent = students.find(s => 
       s.id === user.student_id || 
       s.id === user.santri_id || 
       (s.nis && s.nis.trim().toLowerCase() === lowerNis)
     );
+
+    const rfidCode = connectedStudent?.rfid_uid || `RFID-${trimmedNis}`;
+    const directPasswordMatch = user.password === trimmedPass;
+    const defaultPasswordMatch = (user.password?.toLowerCase() === 'akunsantri' && trimmedPass.toLowerCase() === 'akunsantri');
+    const rfidMatch = trimmedPass.toUpperCase() === rfidCode.toUpperCase();
+
+    if (!directPasswordMatch && !defaultPasswordMatch && !rfidMatch) {
+      return { success: false, message: 'NIS atau password salah. (Password bawaan: akunsantri)' };
+    }
 
     const updatedUser: AppUser = {
       ...user,
@@ -3551,6 +3592,100 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return { success: true, message: 'Login berhasil! Mengalihkan ke Dashboard Santri...', user: updatedUser };
   }, [users, students, pushNotification]);
+
+  const changeSantriPassword = useCallback((studentIdOrUserId: string, newPass: string, oldPass?: string): { success: boolean; message: string } => {
+    const trimmedNew = newPass.trim();
+    if (!trimmedNew || trimmedNew.length < 4) {
+      return { success: false, message: 'Kata sandi baru minimal 4 karakter.' };
+    }
+
+    const targetUser = users.find(u => 
+      u.id === studentIdOrUserId || 
+      u.student_id === studentIdOrUserId || 
+      u.santri_id === studentIdOrUserId ||
+      (u.role === 'SANTRI' && u.username === studentIdOrUserId)
+    );
+
+    if (!targetUser) {
+      return { success: false, message: 'Akun Santri tidak ditemukan.' };
+    }
+
+    // Jika oldPass disediakan, verifikasi kecocokannya
+    if (oldPass !== undefined) {
+      const trimmedOld = oldPass.trim();
+      const currentPass = targetUser.password || 'akunsantri';
+      const isMatch = (currentPass.toUpperCase() === trimmedOld.toUpperCase()) || (currentPass === trimmedOld);
+      if (!isMatch) {
+        return { success: false, message: 'Kata sandi lama / bawaan tidak sesuai.' };
+      }
+    }
+
+    const updatedUser: AppUser = {
+      ...targetUser,
+      password: trimmedNew,
+      password_changed: true,
+      is_first_login: false
+    };
+
+    setUsers(prev => prev.map(u => u.id === targetUser.id ? updatedUser : u));
+    if (currentUser?.id === targetUser.id || (currentUser?.role === 'santri' && (currentUser.student_id === targetUser.student_id || currentUser.username === targetUser.username))) {
+      setCurrentUser(updatedUser);
+    }
+
+    broadcastRealtimeAction({
+      type: 'USER_CHANGE',
+      action: 'UPDATE',
+      payload: updatedUser
+    });
+
+    // Sinkronkan ke Supabase jika terkonfigurasi
+    updateUserInSupabase(targetUser, { password: trimmedNew }).catch(err => {
+      console.warn('Supabase santri password update warning:', err);
+    });
+
+    pushNotification('Kata Sandi Santri Diperbarui', `Kata sandi akun ${targetUser.name} berhasil diperbarui.`, 'success');
+    return { success: true, message: 'Kata sandi berhasil diperbarui!' };
+  }, [users, currentUser, pushNotification]);
+
+  const resetSantriPasswordToDefault = useCallback((studentIdOrUserId: string): { success: boolean; message: string; defaultPassword?: string } => {
+    if (currentUser?.role !== 'admin') {
+      return { success: false, message: 'Hanya Administrator yang berhak mereset kata sandi akun.' };
+    }
+
+    const targetUser = users.find(u => 
+      u.id === studentIdOrUserId || 
+      u.student_id === studentIdOrUserId || 
+      u.santri_id === studentIdOrUserId ||
+      (u.role === 'SANTRI' && u.username === studentIdOrUserId)
+    );
+
+    if (!targetUser) {
+      return { success: false, message: 'Akun Santri tidak ditemukan.' };
+    }
+
+    const defaultPassword = 'akunsantri';
+    const updatedUser: AppUser = {
+      ...targetUser,
+      password: defaultPassword,
+      password_changed: false,
+      is_first_login: true
+    };
+
+    setUsers(prev => prev.map(u => u.id === targetUser.id ? updatedUser : u));
+
+    broadcastRealtimeAction({
+      type: 'USER_CHANGE',
+      action: 'UPDATE',
+      payload: updatedUser
+    });
+
+    updateUserInSupabase(targetUser, { password: defaultPassword }).catch(err => {
+      console.warn('Supabase reset santri password warning:', err);
+    });
+
+    pushNotification('Kata Sandi Direset ke Default', `Kata sandi akun ${targetUser.name} telah direset ke "${defaultPassword}".`, 'info');
+    return { success: true, message: `Kata sandi berhasil direset ke "${defaultPassword}".`, defaultPassword };
+  }, [currentUser, users, pushNotification]);
 
   const logout = useCallback(async () => {
     const userName = currentUser?.name || 'Pengguna';
@@ -4097,6 +4232,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         santriMenusSql: santriMenusTableSql,
         login,
         loginSantri,
+        changeSantriPassword,
+        resetSantriPasswordToDefault,
         logout,
         addUser,
         updateUser,

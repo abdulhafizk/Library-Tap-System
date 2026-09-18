@@ -19,6 +19,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { SantriNotification } from '../../types';
 import { soundManager } from '../../utils/audio';
+import { webPushManager } from '../../utils/webPushManager';
+import { SantriWebPushPrompt } from './SantriWebPushPrompt';
 
 interface SantriNotificationCenterProps {
   isOpen: boolean;
@@ -74,10 +76,13 @@ export const SantriNotificationCenter: React.FC<SantriNotificationCenterProps> =
     onSimulateNotification(type);
     if (type === 'overdue') {
       soundManager.playUrgentAlertSound();
+      webPushManager.notifyLoanStatus('Riyadhus Shalihin (Jilid 1)', 'overdue').catch(() => {});
     } else if (type === 'award') {
       soundManager.playAwardFanfareSound();
+      webPushManager.notifyAwardReceived('Santri Terdisiplin Membaca', 'Bulan Ini', 'PGM-2026-LIT-089').catch(() => {});
     } else {
       soundManager.playNotificationSound();
+      webPushManager.notifyWishlistStatus("Fathul Mu'in Syarah Qurratul 'Ain", 'approved').catch(() => {});
     }
   };
 
@@ -139,6 +144,11 @@ export const SantriNotificationCenter: React.FC<SantriNotificationCenterProps> =
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Web Push Browser Permission Banner */}
+        <div className="px-4 py-2 bg-slate-950/70 border-b border-slate-800/80">
+          <SantriWebPushPrompt studentName="Santri" />
         </div>
 
         {/* Filter Tabs Bar */}

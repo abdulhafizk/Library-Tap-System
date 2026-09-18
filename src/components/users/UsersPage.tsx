@@ -56,6 +56,7 @@ export const UsersPage: React.FC = () => {
     updateUser, 
     deleteUser, 
     toggleUserStatus,
+    resetSantriPasswordToDefault,
     isSupabaseSyncing,
     syncWithSupabase,
     pullFromSupabase
@@ -550,6 +551,24 @@ export const UsersPage: React.FC = () => {
                           : 'Belum pernah'}
                       </span>
                     </div>
+                    {user.role === 'SANTRI' && (
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <KeyRound className="w-3 h-3" /> Status Password:
+                        </span>
+                        <span>
+                          {user.password_changed ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-200 dark:border-emerald-800/60">
+                              Sudah Diubah
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 font-semibold border border-amber-200 dark:border-amber-800/60">
+                              Default (akunsantri)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1120,6 +1139,35 @@ export const UsersPage: React.FC = () => {
             )}
 
             <form onSubmit={handleSavePassword} className="space-y-4">
+              {changingPasswordUser.role === 'SANTRI' && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                      Reset ke Password Default
+                    </div>
+                    <div className="text-[11px] text-amber-700 dark:text-amber-400/90">
+                      Kembalikan password ke <code className="font-mono font-bold bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded">akunsantri</code> dan minta santri mengubahnya saat login berikutnya.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const res = resetSantriPasswordToDefault(changingPasswordUser.id);
+                      if (res.success) {
+                        setChangingPasswordUser(null);
+                        setNewPasswordValue('');
+                        setConfirmPasswordValue('');
+                      } else {
+                        setPasswordError(res.message);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs"
+                  >
+                    Reset Bawaan
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Kata Sandi Baru *

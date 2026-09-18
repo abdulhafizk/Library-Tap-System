@@ -1,6 +1,6 @@
 {
   "name": "Library Tap System",
-  "description": "Sistem presensi dan perpustakaan pesantren berbasis RFID & QR Code dengan Multi-User Authentication & Hak Akses (Administrator, Staff Petugas, dan Portal Santri), Sirkulasi Peminjaman & Pengembalian Buku, Portal Santri Terintegrasi dengan Notifikasi Real-time (Alert Usulan Buku Disetujui, Jatuh Tempo Pinjaman, dan Penghargaan Baru), Tab Lencana & Penghargaan Literasi (Piagam Digital), Usulan Buku Santri (Wishlist), Pembuatan & Cetak Laporan Bulanan PDF, Mode Kios Display TV, Notifikasi WhatsApp, dan Sinkronisasi Cloud Supabase.",
+  "description": "Sistem presensi dan perpustakaan pesantren berbasis RFID & QR Code dengan Multi-User Authentication & Hak Akses (Administrator, Staff Petugas, dan Portal Santri), Sirkulasi Peminjaman & Pengembalian Buku, Portal Santri Terintegrasi dengan Web Push API & Notifikasi Real-time di Perangkat (Pembaruan Status Buku, Usulan Buku Disetujui, Jatuh Tempo Pinjaman, dan Piagam Penghargaan Baru), Tab Lencana & Penghargaan Literasi (Piagam Digital), Usulan Buku Santri (Wishlist), Pembuatan & Cetak Laporan Bulanan PDF, Mode Kios Display TV, Notifikasi WhatsApp, dan Sinkronisasi Cloud Supabase.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

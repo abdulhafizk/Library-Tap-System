@@ -35,7 +35,6 @@ import { useLibrary } from '../../context/LibraryContext';
 import { NavTab } from './Sidebar';
 import { WhatsAppManagerModal } from '../settings/WhatsAppManagerModal';
 import { OfflineQueueModal } from '../common/OfflineQueueModal';
-import { PWAInstallButton } from '../common/PWAInstallButton';
 import { PWAInstallModal } from '../common/PWAInstallModal';
 import { testSupabaseConnection, isSupabaseConfigured } from '../../lib/supabase';
 import { generateAdminAlerts } from '../../utils/adminNotificationUtils';
@@ -375,9 +374,6 @@ export const Header: React.FC<HeaderProps> = ({
             <Tv className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>Display TV</span>
           </button>
-
-          {/* PWA Download / Install Button */}
-          <PWAInstallButton variant="compact" className="hidden sm:inline-flex" />
 
           {/* Dark Mode Quick Toggle (Desktop/Tablet) */}
           <button

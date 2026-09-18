@@ -367,7 +367,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-medium text-slate-300">
-                    {loginRole === 'santri' ? 'Kata Sandi (Kode Kartu RFID)' : 'Kata Sandi (Password)'}
+                    {loginRole === 'santri' ? 'Kata Sandi (Default: akunsantri)' : 'Kata Sandi (Password)'}
                   </label>
                   {loginRole === 'staff' && (
                     <div className="flex items-center gap-3">
@@ -403,7 +403,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder={loginRole === 'santri' ? 'Contoh: RFID-8A92F1' : 'Masukkan kata sandi...'}
+                    placeholder={loginRole === 'santri' ? 'Ketik "akunsantri" atau password baru Anda' : 'Masukkan kata sandi...'}
                     className="w-full pl-10 pr-11 py-2.5 rounded-xl bg-slate-950/70 border border-slate-700/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-white placeholder-slate-500 text-sm outline-none transition-all font-mono"
                     autoComplete="current-password"
                     required
@@ -420,7 +420,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                 {loginRole === 'santri' && (
                   <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
-                    <span>Kata sandi dibuat otomatis oleh sistem saat Admin menambahkan data santri.</span>
+                    <span>Password bawaan: <code className="text-emerald-300 font-mono font-semibold">akunsantri</code> (akan diarahkan untuk ganti password saat login pertama).</span>
                   </p>
                 )}
               </div>
@@ -505,13 +505,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                     <span>Akun Santri (Otomatis dari Data Santri)</span>
                   </div>
                   {students.slice(0, 2).map((s) => {
-                    const rfidCode = s.rfid_uid || `RFID-${s.nis}`;
+                    const studentUser = users.find(u => u.student_id === s.id || u.santri_id === s.id || (u.role === 'SANTRI' && u.username === s.nis));
+                    const currentPass = studentUser?.password || 'akunsantri';
+                    const isChanged = !!studentUser?.password_changed;
                     return (
                       <button
                         key={s.id}
                         id={`btn-quick-santri-${s.nis}`}
                         type="button"
-                        onClick={() => handleQuickLogin(s.nis, rfidCode, 'santri')}
+                        onClick={() => handleQuickLogin(s.nis, currentPass, 'santri')}
                         className="w-full text-left p-3 rounded-2xl bg-gradient-to-r from-emerald-950/50 to-slate-800/80 hover:from-emerald-950/80 hover:to-slate-800 border border-emerald-500/30 hover:border-emerald-500/60 transition-all group cursor-pointer"
                       >
                         <div className="flex items-center justify-between mb-1">
@@ -526,7 +528,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenKiosk }) => {
                           <span className="text-[11px] text-emerald-400 font-mono">NIS: {s.nis}</span>
                         </div>
                         <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span>Pass (RFID): <code className="text-emerald-300 bg-emerald-950/70 px-1 rounded font-mono">{rfidCode}</code></span>
+                          <span>
+                            Pass: <code className="text-emerald-300 bg-emerald-950/70 px-1 rounded font-mono">{currentPass}</code>
+                            {isChanged ? ' (Diubah)' : ' (Default)'}
+                          </span>
                           <span className="text-emerald-400 group-hover:translate-x-0.5 transition-transform font-medium">Login Santri →</span>
                         </div>
                       </button>
