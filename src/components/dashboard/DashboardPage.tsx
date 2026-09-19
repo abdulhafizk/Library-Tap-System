@@ -43,6 +43,7 @@ import { MonthlyReportModal } from '../visits/MonthlyReportModal';
 import { LibraryInsights } from './LibraryInsights';
 import { getWishlistsFromStorage } from '../../utils/santriStorageUtils';
 import { AdminRealtimeAlertBanner } from './AdminRealtimeAlertBanner';
+import { ReadingStreakAdminSection } from './ReadingStreakAdminSection';
 
 interface DashboardPageProps {
   onNavigate: (tab: NavTab) => void;
@@ -555,6 +556,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
         </div>
       </div>
+
+      {/* Reading Streak Analytics & Monitoring Section */}
+      <ReadingStreakAdminSection onSelectStudent={onSelectStudent} />
 
       {/* Monthly Report PDF Modal */}
       <MonthlyReportModal

@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   Trash2,
   HelpCircle,
-  Volume2
+  Volume2,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SantriNotification } from '../../types';
@@ -290,8 +291,11 @@ export const SantriNotificationCenter: React.FC<SantriNotificationCenterProps> =
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${badgeColor}`}>
                         {badgeLabel}
                       </span>
-                      {!item.read && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      {!item.read && !item.seen && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" title="Baru, belum dilihat" />
+                      )}
+                      {!item.read && item.seen && (
+                        <span className="w-2 h-2 rounded-full bg-sky-400" title="Telah dilihat di dashboard" />
                       )}
                     </div>
 
@@ -321,14 +325,25 @@ export const SantriNotificationCenter: React.FC<SantriNotificationCenterProps> =
                   {/* Actions footer */}
                   <div className="flex items-center justify-between gap-2 pt-1">
                     {!item.read ? (
-                      <button
-                        type="button"
-                        onClick={() => onMarkAsRead(item.id)}
-                        className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-slate-800 transition-colors"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Tandai Dibaca
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onMarkAsRead(item.id)}
+                          className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Tandai Dibaca
+                        </button>
+                        {item.seen && (
+                          <span 
+                            className="inline-flex items-center gap-1 text-[10px] text-sky-400/90 bg-sky-950/40 border border-sky-800/40 px-1.5 py-0.5 rounded"
+                            title={item.seen_at ? `Telah tampil di layar dashboard: ${new Date(item.seen_at).toLocaleTimeString('id-ID')}` : 'Telah dilihat di dashboard'}
+                          >
+                            <Eye className="w-3 h-3 text-sky-400" />
+                            Dilihat
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-[10px] text-slate-500 flex items-center gap-1">
                         <CheckCheck className="w-3.5 h-3.5 text-slate-500" />

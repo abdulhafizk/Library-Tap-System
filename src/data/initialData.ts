@@ -1,5 +1,6 @@
 import { Student, RfidCard, LibraryVisit, AppUser, LibrarySettings, NotificationItem, Book, BookLoan, BookWishlist } from '../types';
 import { defaultWhatsAppConfig } from '../utils/whatsappUtils';
+import { DEFAULT_READING_STREAK_CONFIG } from '../utils/readingStreakUtils';
 
 export const initialUsers: AppUser[] = [
   {
@@ -32,6 +33,7 @@ export const initialSettings: LibrarySettings = {
   anti_passback_seconds: 30,
   kiosk_mode_allowed: true,
   whatsapp: defaultWhatsAppConfig,
+  reading_streak: DEFAULT_READING_STREAK_CONFIG,
 };
 
 // Clean State: Seluruh data dummy/palsu telah dibersihkan

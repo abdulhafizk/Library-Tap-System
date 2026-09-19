@@ -69,6 +69,7 @@ export const SantriNotificationToast: React.FC<SantriNotificationToastProps> = (
   };
 
   const handleDismiss = () => {
+    onMarkAsRead(activeAlert.id);
     onDismissToast(activeAlert.id);
   };
 
@@ -192,7 +193,10 @@ export const SantriNotificationToast: React.FC<SantriNotificationToastProps> = (
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10">
             <button
               type="button"
-              onClick={() => onMarkAsRead(activeAlert.id)}
+              onClick={() => {
+                onMarkAsRead(activeAlert.id);
+                onDismissToast(activeAlert.id);
+              }}
               className="text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-white/5"
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />

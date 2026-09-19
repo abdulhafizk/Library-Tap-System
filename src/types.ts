@@ -97,6 +97,66 @@ export interface AppUser {
 import { WhatsAppNotificationConfig, WhatsAppLog } from './utils/whatsappUtils';
 export type { WhatsAppNotificationConfig, WhatsAppLog };
 
+export interface ReadingStreakMilestone {
+  days: number;
+  title: string;
+  badgeIcon: string;
+  description: string;
+}
+export type StreakMilestone = ReadingStreakMilestone;
+
+export interface ReadingStreakConfig {
+  enabled: boolean;
+  daily_target_minutes: number; // e.g. 15
+  milestones: ReadingStreakMilestone[];
+}
+
+export interface ReadingActivity {
+  id: string;
+  santri_id: string;
+  student_name?: string;
+  santri_name?: string;
+  student_nis?: string;
+  santri_nis?: string;
+  book_id?: string;
+  book_title?: string;
+  date: string; // YYYY-MM-DD in Asia/Jakarta
+  start_time?: string; // HH:mm or ISO
+  end_time?: string; // HH:mm or ISO
+  duration_minutes: number;
+  target_reached: boolean;
+  visit_id?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface ReadingDailySummary {
+  id: string;
+  santri_id: string;
+  date: string; // YYYY-MM-DD
+  total_duration_minutes: number;
+  target_minutes: number;
+  target_reached: boolean;
+  sessions_count: number;
+  books_read: Array<{ book_id?: string; title: string; duration_minutes: number }>;
+  updated_at: string;
+}
+
+export interface SantriStreak {
+  santri_id: string;
+  current_streak: number;
+  longest_streak: number;
+  total_reading_days: number;
+  last_reading_date: string | null;
+  total_reading_minutes: number;
+  total_books_read: number;
+  current_milestone?: string;
+  unlocked_milestones: string[];
+  today_reading_minutes: number;
+  today_target_reached: boolean;
+  updated_at: string;
+}
+
 export interface LibrarySettings {
   library_name: string;
   institution_name: string;
@@ -111,6 +171,7 @@ export interface LibrarySettings {
   anti_passback_seconds?: number; // e.g. 30 (Minimum seconds between In and Out to prevent accidental instant checkout)
   kiosk_mode_allowed: boolean;
   whatsapp?: WhatsAppNotificationConfig;
+  reading_streak?: ReadingStreakConfig;
 }
 
 export interface TapResult {
@@ -242,6 +303,8 @@ export interface SantriNotification {
   detail?: string;
   timestamp: string;
   priority: 'urgent' | 'high' | 'normal' | 'celebration';
+  seen?: boolean;
+  seen_at?: string;
   read: boolean;
   actionTab?: 'overview' | 'loans' | 'card' | 'visits' | 'wishlist' | 'journal' | 'awards';
   actionLabel?: string;
@@ -264,6 +327,7 @@ export type { AdminAlertCategory, AdminAlertPriority, AdminAlertNotification } f
 
 export type SantriMenuKey = 
   | 'overview' 
+  | 'reading-streak'
   | 'catalog' 
   | 'loans' 
   | 'returns' 

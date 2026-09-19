@@ -19,10 +19,85 @@ export interface AppReleaseLog {
 
 export const appUpdateLogs: AppReleaseLog[] = [
   {
+    version: 'v2.8.7',
+    releaseDate: '19 September 2026',
+    tagline: 'Otoritas Tunggal Reading Streak Berbasis Presensi RFID & Verifikasi Admin, Penghapusan Tombol Manual Santri',
+    isLatest: true,
+    highlights: [
+      'Otoritas Sumber Data Tunggal (Single Source of Truth): Reading streak santri sepenuhnya divalidasi oleh sistem admin dan presensi perpustakaan berbasis RFID untuk mencegah manipulasi/kecurangan',
+      'Penghapusan Input Manual Santri: Tombol "Mulai Membaca Sekarang" di seluruh dashboard santri telah ditiadakan dan digantikan dengan indikator verifikasi resmi serta pengingat kunjungan',
+      'Fitur Verifikasi & Pencatatan Sesi oleh Petugas: Admin/ustadz kini memiliki modal khusus "+ Catat / Verifikasi Sesi" untuk memvalidasi muthola\'ah halaqah, bimbingan, atau presensi santri dengan stempel waktu resmi',
+      'Tab Manajemen Log Sesi Membaca Seluruh Santri: Navigasi tab baru di panel admin untuk memantau seluruh riwayat sesi membaca, melacak sumber verifikasi (RFID vs Petugas), dan opsi koreksi/hapus sesi',
+      'Sinkronisasi Real-Time Portal Santri: Santri dapat memantau capaian streak, durasi kumulatif, dan lencana milestone secara transparan dan terpercaya tanpa celah kecurangan'
+    ],
+    changes: [
+      {
+        category: 'feature',
+        items: [
+          'Modal Entri & Verifikasi Sesi Membaca Admin: Memungkinkan petugas mencatat sesi muthola\'ah resmi santri dengan preset durasi, judul kitab/buku, dan catatan verifikator.',
+          'Tab Log Sesi Membaca Seluruh Santri di Dashboard Admin: Tabel audit komprehensif seluruh aktivitas membaca dengan filter pencarian instan dan pembeda badge "Presensi RFID" vs "Verifikasi Petugas".',
+          'Aksi Koreksi & Hapus Sesi: Tombol hapus sesi membaca di tabel log admin yang secara otomatis meregenerasi streak santri yang bersangkutan.'
+        ]
+      },
+      {
+        category: 'improvement',
+        items: [
+          'Integritas Data Streak Santri: Penegakan aturan anti-kecurangan dengan menjadikan tap RFID kunjungan perpustakaan dan validasi petugas sebagai syarat mutlak perolehan streak harian.',
+          'UI/UX Status Terverifikasi di Dashboard Santri: Mengganti tombol sesi mandiri dengan kartu informasi panduan muthola\'ah dan badge verifikasi berikon perisai perlindungan.',
+          'Penyempurnaan Rebuild Streak: Perhitungan ulang konsisten yang mendeteksi seluruh sesi valid baik dari kunjungan RFID maupun verifikasi pengampu.'
+        ]
+      },
+      {
+        category: 'security',
+        items: [
+          'Pencegahan Rekayasa Mandiri (Self-Report Prevention): Menutup celah pemicu streak sepihak dari sisi santri tanpa adanya kehadiran fisik atau validasi ustadz pengampu perpustakaan.'
+        ]
+      }
+    ]
+  },
+  {
+    version: 'v2.8.6',
+    releaseDate: '18 September 2026',
+    tagline: 'Audit Alur Trigger Notifikasi Santri, Pelacakan Status Seen Otomatis & Presisi Multi-Identifier',
+    isLatest: false,
+    highlights: [
+      'Pelacakan Status Notifikasi Otomatis (Seen Tracking): Segera setelah santri masuk dashboard dan notifikasi dirender di layar, sistem langsung mengirim update status "seen" dengan stempel waktu presisi',
+      'Pemisahan Logika Status "Seen" vs "Read": Status "seen" otomatis meredam animasi ping/bounce lonceng agar tidak mengganggu santri berulang kali, sementara status "read" tetap dikendalikan manual oleh santri',
+      'Sinkronisasi Multi-Kunci Identitas Santri (ID & NIS): Status notifikasi tersinkronisasi kuat baik saat santri login menggunakan barcode ID UUID maupun NIS asrama',
+      'Badge Visual "Dilihat" & Riwayat Waktu Render: Notifikasi di Pusat Notifikasi menampilkan badge status "Dilihat" lengkap dengan jam tampil, membedakan pesan baru dengan yang sudah diperiksa',
+      'Stabilisasi ID Notifikasi Dinamis & Notifikasi Custom: ID notifikasi jatuh tempo dan peringatan muthola\'ah distabilkan agar status baca dan lihat tidak tereset akibat perubahan selisih hari'
+    ],
+    changes: [
+      {
+        category: 'feature',
+        items: [
+          'Mekanisme Otomatis Notifikasi Seen di Dashboard Santri: Hook useEffect cerdas mendeteksi render pertama notifikasi dan memicu penyimpanan status seen_at secara non-blocking.',
+          'Dukungan Properti seen & seen_at pada SantriNotification: Memperluas skema data notifikasi santri dengan dukungan stempel waktu kapan notifikasi tampil di layar.',
+          'Badge Status "Dilihat" di Pusat Notifikasi Santri: Menambahkan elemen visual badge berwarna biru langit (sky) dengan ikon mata dan tooltip waktu render.'
+        ]
+      },
+      {
+        category: 'improvement',
+        items: [
+          'Optimalisasi Indikator Lonceng Notifikasi Header: Lonceng kini memprioritaskan unseen ping (pesan yang benar-benar belum terlihat) dibanding unread biasa agar lebih tenang dan informatif.',
+          'Sinkronisasi Multi-Identifier Santri (UUID + NIS): Menjamin data status dibaca & dilihat tersimpan konsisten di localStorage di bawah kunci ID santri dan NIS sekaligus.',
+          'Auto-Seen saat Tandai Dibaca: Tindakan menandai notifikasi sebagai dibaca otomatis mencatat status seen.'
+        ]
+      },
+      {
+        category: 'fix',
+        items: [
+          'Pencegahan Flapping / Resetter Status Pinjaman: Normalisasi ID notifikasi pinjaman (notif-loan-due-soon, notif-loan-due-today, notif-loan-overdue) sehingga pergantian hari tidak menghilangkan status telah dibaca.',
+          'Penyempurnaan Payload Custom Notification: Memastikan fungsi addCustomSantriNotification mewarisi status seen default secara aman dan lolos verifikasi TypeScript.'
+        ]
+      }
+    ]
+  },
+  {
     version: 'v2.8.5',
     releaseDate: '16 September 2026',
     tagline: 'PWA Online-First Cloud Supabase & Solusi Pemasangan Browser Standalone',
-    isLatest: true,
+    isLatest: false,
     highlights: [
       'PWA Online-First Terintegrasi Database Cloud: Aplikasi yang diunduh di HP/PC dipastikan selalu online dan terhubung langsung ke database Supabase PostgreSQL real-time dengan strategi NetworkFirst',
       'Solusi Pesan "This app cannot be installed": Mengatasi pemblokiran instalasi bawaan browser Chrome/Edge saat dibuka di jendela pratinjau editor (iFrame) dengan tombol mandiri Buka di Tab Baru',

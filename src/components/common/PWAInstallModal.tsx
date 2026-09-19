@@ -401,7 +401,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ isOpen, onClos
         {/* Modal Footer */}
         <div className="px-5 py-3.5 sm:px-6 sm:py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400">
-            Versi PWA v2.8.5 • Cloud Database PostgreSQL Online
+            Versi PWA v2.8.7 • Cloud Database PostgreSQL Online
           </p>
           <div className="flex items-center gap-2">
             {isInIframe && (

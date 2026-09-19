@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   LogOut, 
   GraduationCap, 
@@ -27,10 +27,11 @@ import {
   User,
   Layers,
   Lock,
-  KeyRound
+  KeyRound,
+  Flame
 } from 'lucide-react';
 import { useLibrary } from '../../context/LibraryContext';
-import { Student, SantriMenuKey, SantriMenu } from '../../types';
+import { Student, SantriMenuKey, SantriMenu, StreakMilestone } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { SantriLoansTab } from './SantriLoansTab';
 import { SantriCardTab } from './SantriCardTab';
@@ -39,6 +40,11 @@ import { SantriWishlistTab } from './SantriWishlistTab';
 import { SantriJournalTab } from './SantriJournalTab';
 import { SantriAwardsTab } from './SantriAwardsTab';
 import { SantriCatalogTab } from './SantriCatalogTab';
+import { SantriReadingStreakPage } from './SantriReadingStreakPage';
+import { ReadingStreakCard } from './ReadingStreakCard';
+import { ReadingStreakReminder } from './ReadingStreakReminder';
+import { ReadingMilestoneModal } from './ReadingMilestoneModal';
+import { calculateSantriStreak } from '../../utils/readingStreakUtils';
 import { SantriNotificationToast } from './SantriNotificationToast';
 import { SantriNotificationCenter } from './SantriNotificationCenter';
 import { SantriWebPushPrompt } from './SantriWebPushPrompt';
@@ -50,6 +56,7 @@ import {
   generateSantriNotifications,
   markSantriNotificationAsRead,
   markAllSantriNotificationsAsRead,
+  markSantriNotificationsAsSeen,
   dismissSantriNotificationToast,
   isToastDismissed,
   addCustomSantriNotification,
@@ -85,6 +92,8 @@ const getMenuIcon = (iconName: string, className = 'w-4 h-4') => {
       return <Bookmark className={className} />;
     case 'Bell':
       return <Bell className={className} />;
+    case 'Flame':
+      return <Flame className={className} />;
     case 'User':
       return <User className={className} />;
     default:
@@ -93,10 +102,28 @@ const getMenuIcon = (iconName: string, className = 'w-4 h-4') => {
 };
 
 export const SantriDashboard: React.FC = () => {
-  const { currentUser, students, cards, books, loans, visits, logout, settings, wishlists, awards, santriMenus } = useLibrary();
+  const { 
+    currentUser, 
+    students, 
+    cards, 
+    books, 
+    loans, 
+    visits, 
+    logout, 
+    settings, 
+    wishlists, 
+    awards, 
+    santriMenus,
+    readingActivities,
+    getSantriStreak,
+    addReadingActivity
+  } = useLibrary();
 
   // Navigation tab state supporting all dynamic santri menu keys
   const [activeTab, setActiveTab] = useState<SantriMenuKey>('overview');
+
+  // Reading Milestone celebration state
+  const [celebrationMilestone, setCelebrationMilestone] = useState<{ milestone: StreakMilestone; streak: number } | null>(null);
 
   // Real-time notification center state
   const [isNotifCenterOpen, setIsNotifCenterOpen] = useState(false);
@@ -197,12 +224,52 @@ export const SantriDashboard: React.FC = () => {
     return notifications.filter(n => !n.read).length;
   }, [notifications]);
 
-  // Active unread toast alert that hasn't been dismissed in this session
+  const unseenCount = useMemo(() => {
+    return notifications.filter(n => !n.seen && !n.read).length;
+  }, [notifications]);
+
+  // Ref untuk melacak notifikasi yang telah dikirimkan status 'seen' pada siklus hidup sesi dashboard
+  const seenNotifIdsReportedRef = useRef<Set<string>>(new Set());
+
+  // AUDIT ALUR TRIGGER NOTIFIKASI:
+  // Segera setelah santri membuka dashboard dan daftar notifikasi dirender,
+  // sistem segera mengirim update ke state management lokal (localStorage multi-key ID/NIS)
+  // untuk menandai seluruh notifikasi yang dirender sebagai 'seen' dengan timestamp akurat.
+  useEffect(() => {
+    if (!connectedStudent?.id || notifications.length === 0) return;
+
+    // Ambil notifikasi yang belum berstatus seen dan belum dilaporkan di sesi ini
+    const newlyRenderedUnseen = notifications.filter(
+      n => !n.seen && !seenNotifIdsReportedRef.current.has(n.id)
+    );
+
+    if (newlyRenderedUnseen.length > 0) {
+      const idsToMarkSeen = newlyRenderedUnseen.map(n => n.id);
+      idsToMarkSeen.forEach(id => seenNotifIdsReportedRef.current.add(id));
+
+      // Kirim pembaruan ke storage persistensi lokal santri
+      markSantriNotificationsAsSeen(connectedStudent.id, idsToMarkSeen, connectedStudent.nis);
+
+      // Siarkan event lokal untuk sinkronisasi komponen UI (NotificationCenter, Toasts, header)
+      window.dispatchEvent(
+        new CustomEvent('santri_notifications_seen', {
+          detail: {
+            studentId: connectedStudent.id,
+            studentNis: connectedStudent.nis,
+            notifIds: idsToMarkSeen,
+            timestamp: new Date().toISOString()
+          }
+        })
+      );
+    }
+  }, [connectedStudent?.id, connectedStudent?.nis, notifications]);
+
+  // Active unread toast alert that hasn't been dismissed in this session or previously
   const activeToasts = useMemo(() => {
     return notifications.filter(
-      n => !n.read && !dismissedToastIds.has(n.id) && !isToastDismissed(connectedStudent.id, n.id)
+      n => !n.read && !dismissedToastIds.has(n.id) && !isToastDismissed(connectedStudent.id, n.id, connectedStudent.nis)
     );
-  }, [notifications, dismissedToastIds, connectedStudent.id]);
+  }, [notifications, dismissedToastIds, connectedStudent.id, connectedStudent.nis]);
 
   // Listen to Web Push notification clicks navigating to specific tabs
   useEffect(() => {
@@ -226,16 +293,38 @@ export const SantriDashboard: React.FC = () => {
     return new Map<string, SantriMenu>(santriMenus.map(m => [m.menu_key, m]));
   }, [santriMenus]);
 
-  // 7 menu utama yang diizinkan muncul di top header navigasi Dashboard Santri:
+  // Reading Streak state for connected student
+  const santriStreak = useMemo(() => {
+    return getSantriStreak
+      ? getSantriStreak(connectedStudent.id)
+      : calculateSantriStreak(connectedStudent.id, readingActivities, settings.reading_streak);
+  }, [connectedStudent.id, readingActivities, settings.reading_streak, getSantriStreak]);
+
+  const streakConfig = useMemo(() => {
+    return settings.reading_streak || {
+      daily_target_minutes: 15,
+      enabled: true,
+      milestones: [
+        { days: 3, title: 'Pemula Istiqomah', description: 'Membaca 3 hari berturut-turut', badge_icon: '🌱', xp_reward: 50 },
+        { days: 7, title: 'Santri Rajin', description: 'Membaca 7 hari berturut-turut (1 pekan penuh)', badge_icon: '🔥', xp_reward: 150 },
+        { days: 14, title: 'Penjelajah Kitab', description: 'Membaca 14 hari berturut-turut', badge_icon: '📚', xp_reward: 300 },
+        { days: 30, title: 'Khadim Al-Ilmi', description: 'Membaca 30 hari istiqomah (1 bulan penuh)', badge_icon: '👑', xp_reward: 1000 },
+      ]
+    };
+  }, [settings.reading_streak]);
+
+  // Menu utama yang diizinkan muncul di top header navigasi Dashboard Santri:
   // 1. Beranda/Dashboard
-  // 2. Kartu anggota digital
-  // 3. Riwayat Kunjungan
-  // 4. Peminjaman Saya
-  // 5. Catatan Baca & Faedah
-  // 6. Lencana & Penghargaan
-  // 7. Profil Santri
+  // 2. Reading Streak
+  // 3. Kartu anggota digital
+  // 4. Riwayat Kunjungan
+  // 5. Peminjaman Saya
+  // 6. Catatan Baca & Faedah
+  // 7. Lencana & Penghargaan
+  // 8. Profil Santri
   const TOP_HEADER_MENU_KEYS: SantriMenuKey[] = [
     'overview',
+    'reading-streak',
     'card',
     'visits',
     'loans',
@@ -244,12 +333,13 @@ export const SantriDashboard: React.FC = () => {
     'profile'
   ];
 
-  // Filtered menus for top navigation: Tepat 7 menu utama pilihan yang selalu tersinkronisasi
+  // Filtered menus for top navigation: Menu utama pilihan yang selalu tersinkronisasi
   const activeTopMenus = useMemo(() => {
     return TOP_HEADER_MENU_KEYS.map((key, idx) => {
       const existing = santriMenuMap.get(key);
       const defaultName = 
         key === 'overview' ? 'Beranda / Dashboard' :
+        key === 'reading-streak' ? 'Reading Streak' :
         key === 'card' ? 'Kartu Anggota Digital' :
         key === 'visits' ? 'Riwayat Kunjungan' :
         key === 'loans' ? 'Peminjaman Saya' :
@@ -258,6 +348,7 @@ export const SantriDashboard: React.FC = () => {
 
       const defaultIcon = 
         key === 'overview' ? 'Home' :
+        key === 'reading-streak' ? 'Flame' :
         key === 'card' ? 'CreditCard' :
         key === 'visits' ? 'Clock' :
         key === 'loans' ? 'BookMarked' :
@@ -295,18 +386,20 @@ export const SantriDashboard: React.FC = () => {
 
   // Real-time notification actions
   const handleMarkAsRead = (id: string) => {
-    markSantriNotificationAsRead(connectedStudent.id, id);
+    markSantriNotificationAsRead(connectedStudent.id, id, connectedStudent.nis);
     setRefreshNotifsKey(k => k + 1);
   };
 
   const handleMarkAllAsRead = () => {
-    markAllSantriNotificationsAsRead(connectedStudent.id, notifications.map(n => n.id));
+    markAllSantriNotificationsAsRead(connectedStudent.id, notifications.map(n => n.id), connectedStudent.nis);
     setRefreshNotifsKey(k => k + 1);
   };
 
   const handleDismissToast = (id: string) => {
-    dismissSantriNotificationToast(connectedStudent.id, id);
+    dismissSantriNotificationToast(connectedStudent.id, id, connectedStudent.nis);
+    markSantriNotificationAsRead(connectedStudent.id, id, connectedStudent.nis);
     setDismissedToastIds(prev => new Set(prev).add(id));
+    setRefreshNotifsKey(k => k + 1);
   };
 
   const handleSimulateNotification = (type: 'wishlist' | 'overdue' | 'award') => {
@@ -358,6 +451,13 @@ export const SantriDashboard: React.FC = () => {
 
   // Helper to render badge on tabs
   const renderTabBadge = (menuKey: SantriMenuKey) => {
+    if (menuKey === 'reading-streak' && santriStreak.current_streak > 0) {
+      return (
+        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950 flex items-center gap-0.5 shadow-sm">
+          🔥 {santriStreak.current_streak}
+        </span>
+      );
+    }
     if (menuKey === 'loans' && activeLoans.length > 0) {
       return (
         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
@@ -429,8 +529,8 @@ export const SantriDashboard: React.FC = () => {
             title={`Notifikasi & Alert Santri (${unreadCount} belum dibaca)`}
           >
             <div className="relative">
-              <Bell className={`w-4 h-4 ${unreadCount > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
-              {unreadCount > 0 && (
+              <Bell className={`w-4 h-4 ${unseenCount > 0 ? 'text-amber-400 animate-bounce' : unreadCount > 0 ? 'text-amber-400' : 'text-slate-400'}`} />
+              {unseenCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
               )}
             </div>
@@ -742,6 +842,20 @@ export const SantriDashboard: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Reading Streak Live Progress Banner & Card */}
+                    <div className="space-y-4">
+                      <ReadingStreakReminder
+                        streak={santriStreak}
+                        config={streakConfig}
+                        onViewDetails={() => setActiveTab('reading-streak')}
+                      />
+                      <ReadingStreakCard
+                        streak={santriStreak}
+                        config={streakConfig}
+                        onViewDetail={() => setActiveTab('reading-streak')}
+                      />
+                    </div>
+
                     {/* Dynamic Action Feature Cards (Tersinkronisasi Realtime dengan Pengaturan Menu Santri) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {sortedSantriMenus
@@ -912,6 +1026,14 @@ export const SantriDashboard: React.FC = () => {
                       student={connectedStudent}
                     />
                   </div>
+                )}
+
+                {/* VIEW: READING STREAK & MUTHOLA'AH DETAIL */}
+                {activeTab === 'reading-streak' && (
+                  <SantriReadingStreakPage
+                    currentStudent={connectedStudent}
+                    onNavigateTab={setActiveTab}
+                  />
                 )}
 
                 {/* VIEW: CATATAN BACA / FAEDAH KITAB */}
@@ -1244,6 +1366,14 @@ export const SantriDashboard: React.FC = () => {
           setIsPasswordModalOpen(false);
           setIsFirstLoginChange(false);
         }}
+      />
+
+      {/* Milestone Celebration Dialog */}
+      <ReadingMilestoneModal
+        isOpen={Boolean(celebrationMilestone)}
+        milestone={celebrationMilestone?.milestone || null}
+        streakDays={celebrationMilestone?.streak || 0}
+        onClose={() => setCelebrationMilestone(null)}
       />
     </div>
   );

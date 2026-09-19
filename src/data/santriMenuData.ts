@@ -52,6 +52,19 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     created_at: '2026-08-01T00:00:00.000Z'
   },
   {
+    id: 'smenu-reading-streak',
+    menu_key: 'reading-streak',
+    menu_name: 'Reading Streak',
+    description: 'Catatan konsistensi membaca harian santri, grafik kalender, target, dan lencana milestone',
+    is_enabled: true,
+    icon: 'Flame',
+    route: '/santri/reading-streak',
+    sort_order: 5,
+    category: 'literasi',
+    badge: '🔥 Streak',
+    created_at: '2026-08-01T00:00:00.000Z'
+  },
+  {
     id: 'smenu-journal',
     menu_key: 'journal',
     menu_name: 'Catatan Baca & Faedah',
@@ -59,7 +72,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'PenTool',
     route: '/santri/jurnal-baca',
-    sort_order: 5,
+    sort_order: 6,
     category: 'literasi',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -71,7 +84,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'Trophy',
     route: '/santri/penghargaan',
-    sort_order: 6,
+    sort_order: 7,
     category: 'literasi',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -83,7 +96,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'User',
     route: '/santri/profil',
-    sort_order: 7,
+    sort_order: 8,
     category: 'pengguna',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -95,7 +108,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'BookOpen',
     route: '/santri/katalog',
-    sort_order: 8,
+    sort_order: 9,
     category: 'utama',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -107,7 +120,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'BookPlus',
     route: '/santri/usulan-buku',
-    sort_order: 9,
+    sort_order: 10,
     category: 'literasi',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -119,7 +132,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: false,
     icon: 'Undo2',
     route: '/santri/pengembalian',
-    sort_order: 10,
+    sort_order: 11,
     category: 'sirkulasi',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -131,7 +144,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: false,
     icon: 'History',
     route: '/santri/riwayat-peminjaman',
-    sort_order: 11,
+    sort_order: 12,
     category: 'sirkulasi',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -143,7 +156,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: false,
     icon: 'Bookmark',
     route: '/santri/bookmark',
-    sort_order: 12,
+    sort_order: 13,
     category: 'pengguna',
     created_at: '2026-08-01T00:00:00.000Z'
   },
@@ -155,7 +168,7 @@ export const DEFAULT_SANTRI_MENUS: SantriMenu[] = [
     is_enabled: true,
     icon: 'Bell',
     route: '/santri/notifikasi',
-    sort_order: 13,
+    sort_order: 14,
     category: 'pengguna',
     created_at: '2026-08-01T00:00:00.000Z'
   }

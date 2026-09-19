@@ -13,8 +13,20 @@ import {
   BookLoan,
   LiteracyAward,
   BookWishlist,
-  SantriMenu
+  SantriMenu,
+  ReadingActivity,
+  ReadingDailySummary,
+  SantriStreak,
+  ReadingStreakConfig
 } from '../types';
+import { 
+  calculateSantriStreak,
+  generateSampleReadingActivities,
+  getJakartaDateString,
+  formatJakartaTime,
+  DEFAULT_STREAK_MILESTONES,
+  DEFAULT_READING_STREAK_CONFIG
+} from '../utils/readingStreakUtils';
 import { 
   initialStudents, 
   initialCards, 
@@ -214,6 +226,7 @@ interface LibraryContextType {
   setCurrentRole: (role: UserRole) => void;
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
+  pushNotification: (title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   resetToDefaultData: () => void;
   clearAllData: (options?: { deleteFromCloud?: boolean; includeUsers?: boolean }) => Promise<{ success: boolean; message: string }>;
   
@@ -237,6 +250,21 @@ interface LibraryContextType {
   flushOfflineQueue: () => Promise<FlushResult>;
   clearOfflineQueue: () => void;
   removeQueuedTap: (id: string) => void;
+
+  // Reading Streak & Activity
+  readingActivities: ReadingActivity[];
+  addReadingActivity: (activityData: Omit<ReadingActivity, 'id' | 'created_at' | 'target_reached' | 'date'> & { date?: string }) => Promise<{
+    success: boolean;
+    message: string;
+    activity?: ReadingActivity;
+    isNewStreakDay?: boolean;
+    newStreak?: number;
+    unlockedMilestone?: string;
+  }>;
+  deleteReadingActivity: (id: string) => Promise<boolean>;
+  getSantriStreak: (santriId: string) => SantriStreak;
+  updateReadingStreakConfig: (newConfig: Partial<ReadingStreakConfig>) => void;
+  rebuildSantriStreaks: () => void;
 }
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined);
@@ -279,6 +307,7 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'libtap_notifications_v1',
   WA_LOGS: 'libtap_wa_logs_v1',
   OFFLINE_QUEUE: 'libtap_rfid_offline_queue_v1',
+  READING_ACTIVITIES: 'libtap_reading_activities_v1',
 };
 
 // Helper filter untuk memastikan data dummy awal terhapus tanpa menghapus data baru pengguna
@@ -514,6 +543,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isProcessingOfflineQueue, setIsProcessingOfflineQueue] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const offlineQueueCount = offlineQueue.length;
+
+  // Reading Activities State & Persistence
+  const [readingActivities, setReadingActivities] = useState<ReadingActivity[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.READING_ACTIVITIES);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return generateSampleReadingActivities(initialStudents);
+  });
+  const readingActivitiesRef = useRef<ReadingActivity[]>(readingActivities);
+
+  useEffect(() => {
+    readingActivitiesRef.current = readingActivities;
+    localStorage.setItem(STORAGE_KEYS.READING_ACTIVITIES, JSON.stringify(readingActivities));
+  }, [readingActivities]);
 
   const clearLastUnregisteredCard = useCallback(() => {
     setLastUnregisteredCardUid(null);
@@ -1610,6 +1657,144 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => clearInterval(interval);
   }, [isOnline, offlineQueue.length, isProcessingOfflineQueue, flushOfflineQueue]);
 
+  // Reading Streak Handlers & Helpers
+  const recordReadingActivityFromVisit = useCallback((
+    studentId: string,
+    studentName: string,
+    studentNis: string,
+    durationMins: number,
+    visitId: string,
+    checkInIso: string,
+    checkOutIso: string
+  ) => {
+    const streakCfg = settings.reading_streak || DEFAULT_READING_STREAK_CONFIG;
+    if (!streakCfg.enabled || durationMins <= 0) return;
+
+    const targetMins = streakCfg.daily_target_minutes || 15;
+    const dateStr = getJakartaDateString(checkOutIso);
+    const actId = generateUniqueId('act-rfid');
+    const newAct: ReadingActivity = {
+      id: actId,
+      santri_id: studentId,
+      student_name: studentName,
+      student_nis: studentNis,
+      book_title: 'Muthola\'ah di Perpustakaan (Kunjungan Presensi RFID)',
+      date: dateStr,
+      start_time: formatJakartaTime(checkInIso),
+      end_time: formatJakartaTime(checkOutIso),
+      duration_minutes: durationMins,
+      target_reached: durationMins >= targetMins,
+      visit_id: visitId,
+      notes: `Presensi kunjungan perpustakaan via tap RFID (${durationMins} menit)`,
+      created_at: checkOutIso
+    };
+
+    const prevStreak = calculateSantriStreak(studentId, readingActivitiesRef.current, streakCfg);
+    const nextActs = [newAct, ...readingActivitiesRef.current];
+    readingActivitiesRef.current = nextActs;
+    setReadingActivities(nextActs);
+    localStorage.setItem(STORAGE_KEYS.READING_ACTIVITIES, JSON.stringify(nextActs));
+
+    const newStreak = calculateSantriStreak(studentId, nextActs, streakCfg);
+    if (!prevStreak.today_target_reached && newStreak.today_target_reached) {
+      pushNotification(
+        '🔥 Reading Streak Terjaga!',
+        `Alhamdulillah! Kunjungan ${studentName} hari ini mencapai target membaca (${targetMins} menit). Streak saat ini: ${newStreak.current_streak} hari!`,
+        'success'
+      );
+    }
+  }, [settings.reading_streak, pushNotification]);
+
+  const getSantriStreak = useCallback((santriId: string): SantriStreak => {
+    return calculateSantriStreak(santriId, readingActivitiesRef.current, settings.reading_streak);
+  }, [settings.reading_streak]);
+
+  const addReadingActivity = useCallback(async (
+    activityData: Omit<ReadingActivity, 'id' | 'created_at' | 'target_reached' | 'date'> & { date?: string }
+  ) => {
+    const streakCfg = settings.reading_streak || DEFAULT_READING_STREAK_CONFIG;
+    const targetMins = streakCfg.daily_target_minutes || 15;
+    const dateStr = activityData.date || getJakartaDateString();
+    const actId = generateUniqueId('act');
+    const nowIso = new Date().toISOString();
+
+    const duration = Math.max(1, Math.round(activityData.duration_minutes));
+    const newAct: ReadingActivity = {
+      ...activityData,
+      id: actId,
+      date: dateStr,
+      duration_minutes: duration,
+      target_reached: duration >= targetMins,
+      created_at: nowIso
+    };
+
+    const prevStreak = calculateSantriStreak(activityData.santri_id, readingActivitiesRef.current, streakCfg);
+    const updated = [newAct, ...readingActivitiesRef.current];
+    readingActivitiesRef.current = updated;
+    setReadingActivities(updated);
+    localStorage.setItem(STORAGE_KEYS.READING_ACTIVITIES, JSON.stringify(updated));
+
+    const newStreak = calculateSantriStreak(activityData.santri_id, updated, streakCfg);
+    const isNewStreakDay = !prevStreak.today_target_reached && newStreak.today_target_reached;
+
+    let unlockedMilestone: string | undefined;
+    const milestones = streakCfg.milestones || DEFAULT_STREAK_MILESTONES;
+    for (const ms of milestones) {
+      if (newStreak.current_streak >= ms.days && !prevStreak.unlocked_milestones.includes(ms.title)) {
+        unlockedMilestone = ms.title;
+      }
+    }
+
+    if (isNewStreakDay) {
+      if (settings.sound_enabled) soundManager.playCheckInSound();
+      pushNotification(
+        '🔥 Reading Streak Terjaga!',
+        `Alhamdulillah! Target membaca harian (${targetMins} menit) telah tercapai. Streak saat ini: ${newStreak.current_streak} hari!`,
+        'success'
+      );
+    }
+
+    return {
+      success: true,
+      message: isNewStreakDay
+        ? `Target membaca hari ini tercapai! Streak kamu: ${newStreak.current_streak} hari.`
+        : `Aktivitas membaca berhasil dicatat (${duration} menit).`,
+      activity: newAct,
+      isNewStreakDay,
+      newStreak: newStreak.current_streak,
+      unlockedMilestone
+    };
+  }, [settings.reading_streak, settings.sound_enabled, pushNotification]);
+
+  const deleteReadingActivity = useCallback(async (id: string): Promise<boolean> => {
+    const updated = readingActivitiesRef.current.filter(a => a.id !== id);
+    readingActivitiesRef.current = updated;
+    setReadingActivities(updated);
+    localStorage.setItem(STORAGE_KEYS.READING_ACTIVITIES, JSON.stringify(updated));
+    return true;
+  }, []);
+
+  const updateReadingStreakConfig = useCallback((newConfig: Partial<ReadingStreakConfig>) => {
+    setSettings(prev => {
+      const currentConfig = prev.reading_streak || DEFAULT_READING_STREAK_CONFIG;
+      const updatedConfig: ReadingStreakConfig = {
+        ...currentConfig,
+        ...newConfig,
+        milestones: newConfig.milestones || currentConfig.milestones || DEFAULT_STREAK_MILESTONES
+      };
+      const newSettings = {
+        ...prev,
+        reading_streak: updatedConfig
+      };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
+      return newSettings;
+    });
+  }, []);
+
+  const rebuildSantriStreaks = useCallback(() => {
+    setReadingActivities([...readingActivitiesRef.current]);
+  }, []);
+
   // Main RFID / NFC Tap Processor with Hardware Debounce, Anti-Double-Tap & Anti-Passback
   const handleRfidTap = useCallback(async (rawUid: string): Promise<TapResult> => {
     const cleanUid = rawUid ? rawUid.trim().toUpperCase() : '';
@@ -1827,6 +2012,17 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         nextVisits[activeVisitIndex] = updatedVisit;
         visitsRef.current = nextVisits;
         setVisits(nextVisits);
+
+        // Automatically link & record reading activity for this completed visit
+        recordReadingActivityFromVisit(
+          student.id,
+          student.name,
+          student.nis,
+          durationMins,
+          updatedVisit.id,
+          activeVisit.check_in,
+          nowIso
+        );
 
         // Record recent tap in Map
         recentTapsRef.current.set(cleanUid, { time: nowTimestamp, type: 'out', studentId: student.id });
@@ -2057,6 +2253,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
 
     if (updatedVisit) {
+      if (studentForVisit) {
+        recordReadingActivityFromVisit(
+          studentForVisit.id,
+          studentForVisit.name,
+          studentForVisit.nis,
+          (updatedVisit as LibraryVisit).duration_minutes || 1,
+          (updatedVisit as LibraryVisit).id,
+          (updatedVisit as LibraryVisit).check_in,
+          nowIso
+        );
+      }
+
       // Broadcast instant Realtime event to all connected devices (<50ms)
       broadcastRealtimeAction({
         type: 'VISIT_CHANGE',
@@ -4247,6 +4455,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCurrentRole,
         markNotificationRead,
         clearNotifications,
+        pushNotification,
         resetToDefaultData,
         clearAllData,
         supabaseSchema: supabaseSqlSchema,
@@ -4266,6 +4475,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         flushOfflineQueue,
         clearOfflineQueue,
         removeQueuedTap,
+        readingActivities,
+        addReadingActivity,
+        deleteReadingActivity,
+        getSantriStreak,
+        updateReadingStreakConfig,
+        rebuildSantriStreaks,
       }}
     >
       {children}
