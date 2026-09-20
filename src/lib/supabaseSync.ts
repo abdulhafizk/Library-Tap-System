@@ -1,5 +1,18 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Student, RfidCard, LibraryVisit, Book, BookLoan, AppUser, LiteracyAward, BookWishlist, SantriMenu } from '../types';
+import { 
+  Student, 
+  RfidCard, 
+  LibraryVisit, 
+  Book, 
+  BookLoan, 
+  AppUser, 
+  LiteracyAward, 
+  BookWishlist, 
+  SantriMenu,
+  ReadingActivity,
+  ReadingStreakConfig,
+  LibrarySettings
+} from '../types';
 
 // Table availability caches to prevent loud warnings when tables haven't been created yet in user's Supabase
 let isWishlistTableAvailable: boolean | null = null;
@@ -92,6 +105,8 @@ export async function syncAllToSupabase(data: {
   awards?: LiteracyAward[];
   wishlists?: BookWishlist[];
   santriMenus?: SantriMenu[];
+  readingActivities?: ReadingActivity[];
+  readingStreakConfig?: ReadingStreakConfig;
 }): Promise<{ success: boolean; message: string; error?: string }> {
   if (!isSupabaseConfigured) {
     return { success: false, message: 'Kredensial Supabase belum dikonfigurasi.' };
@@ -105,9 +120,12 @@ export async function syncAllToSupabase(data: {
           nis: s.nis,
           name: s.name,
           class: s.class,
+          class_grade: s.class_grade || null,
+          dormitory: s.dormitory || null,
           gender: s.gender,
           photo_url: s.photo_url || null,
           phone: s.phone || null,
+          parent_phone: s.parent_phone || null,
           status: s.status || 'active',
         };
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id);
@@ -306,9 +324,60 @@ export async function syncAllToSupabase(data: {
       }
     }
 
+    // 10. Sync Reading Activities
+    if (data.readingActivities && data.readingActivities.length > 0) {
+      const activityPayloads = data.readingActivities.map(a => {
+        const payload: any = {
+          santri_id: a.santri_id,
+          student_name: a.student_name || a.santri_name || null,
+          santri_name: a.santri_name || a.student_name || null,
+          student_nis: a.student_nis || a.santri_nis || null,
+          santri_nis: a.santri_nis || a.student_nis || null,
+          book_id: a.book_id || null,
+          book_title: a.book_title || null,
+          date: a.date,
+          start_time: a.start_time || null,
+          end_time: a.end_time || null,
+          duration_minutes: Number(a.duration_minutes) || 0,
+          target_reached: Boolean(a.target_reached),
+          visit_id: a.visit_id || null,
+          notes: a.notes || null,
+          created_at: a.created_at || new Date().toISOString(),
+        };
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.id)) {
+          payload.id = a.id;
+        }
+        return payload;
+      });
+
+      const { error: actErr } = await supabase
+        .from('reading_activities')
+        .upsert(activityPayloads, { onConflict: 'id' });
+      if (actErr && !isSchemaCacheOrMissingTableError(actErr)) {
+        console.warn('Supabase reading_activities upsert warning:', actErr);
+      }
+    }
+
+    // 11. Sync Reading Streak Config
+    if (data.readingStreakConfig) {
+      const streakPayload = {
+        id: 'main_config',
+        enabled: Boolean(data.readingStreakConfig.enabled),
+        daily_target_minutes: data.readingStreakConfig.daily_target_minutes || 15,
+        milestones: data.readingStreakConfig.milestones || [],
+        updated_at: new Date().toISOString(),
+      };
+      const { error: confErr } = await supabase
+        .from('reading_streak_configs')
+        .upsert(streakPayload, { onConflict: 'id' });
+      if (confErr && !isSchemaCacheOrMissingTableError(confErr)) {
+        console.warn('Supabase reading_streak_configs upsert warning:', confErr);
+      }
+    }
+
     return {
       success: true,
-      message: 'Semua data perpustakaan termasuk piagam penghargaan, usulan santri, pengaturan menu santri, dan akun pengguna berhasil disinkronkan ke database Supabase!',
+      message: 'Semua data perpustakaan termasuk piagam penghargaan, usulan santri, aktivitas membaca/streak, pengaturan menu santri, dan akun pengguna berhasil disinkronkan ke database Supabase!',
     };
   } catch (err: any) {
     return {
@@ -333,6 +402,9 @@ export async function fetchAllFromSupabase(): Promise<{
   awards?: LiteracyAward[];
   wishlists?: BookWishlist[];
   santriMenus?: SantriMenu[];
+  readingActivities?: ReadingActivity[];
+  readingStreakConfig?: ReadingStreakConfig;
+  librarySettings?: Partial<LibrarySettings>;
   error?: string;
 }> {
   if (!isSupabaseConfigured) {
@@ -340,7 +412,20 @@ export async function fetchAllFromSupabase(): Promise<{
   }
 
   try {
-    const [studentsRes, booksRes, cardsRes, visitsRes, loansRes, usersRes, awardsRes, wishlistsRes, santriMenusRes] = await Promise.all([
+    const [
+      studentsRes, 
+      booksRes, 
+      cardsRes, 
+      visitsRes, 
+      loansRes, 
+      usersRes, 
+      awardsRes, 
+      wishlistsRes, 
+      santriMenusRes,
+      readingActsRes,
+      streakConfigRes,
+      settingsRes
+    ] = await Promise.all([
       supabase.from('students').select('*').order('created_at', { ascending: false }),
       supabase.from('books').select('*').order('created_at', { ascending: false }),
       supabase.from('rfid_cards').select('*'),
@@ -350,6 +435,9 @@ export async function fetchAllFromSupabase(): Promise<{
       supabase.from('literacy_awards').select('*').order('awarded_at', { ascending: false }).limit(200),
       supabase.from('book_wishlists').select('*').order('created_at', { ascending: false }).limit(250),
       supabase.from('santri_menus').select('*').order('sort_order', { ascending: true }),
+      supabase.from('reading_activities').select('*').order('date', { ascending: false }).limit(500),
+      supabase.from('reading_streak_configs').select('*').limit(1),
+      supabase.from('library_settings').select('*').limit(1),
     ]);
 
     const result: any = { success: true };
@@ -374,9 +462,12 @@ export async function fetchAllFromSupabase(): Promise<{
           nis: row.nis,
           name: row.name,
           class: row.class,
+          class_grade: row.class_grade || '',
+          dormitory: row.dormitory || '',
           gender: row.gender,
           photo_url: row.photo_url || '',
           phone: row.phone || '',
+          parent_phone: row.parent_phone || '',
           status: row.status || 'active',
           rfid_uid: studentCard ? studentCard.uid : undefined,
           created_at: row.created_at,
@@ -467,7 +558,11 @@ export async function fetchAllFromSupabase(): Promise<{
         avatar: row.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
         phone: row.phone || '',
         status: row.status || 'active',
+        student_id: row.student_id || undefined,
+        password: row.password || undefined,
         is_default: row.role === 'admin' && (row.email?.startsWith('admin') || row.name?.toLowerCase().includes('admin')),
+        is_first_login: Boolean(row.is_first_login),
+        password_changed: Boolean(row.password_changed),
         created_at: row.created_at || new Date().toISOString(),
       }));
     }
@@ -543,6 +638,50 @@ export async function fetchAllFromSupabase(): Promise<{
         created_at: row.created_at,
         updated_at: row.updated_at,
       }));
+    }
+
+    // 10. Reading Activities from Supabase
+    if (readingActsRes.error) {
+      if (!isSchemaCacheOrMissingTableError(readingActsRes.error)) {
+        console.warn('Supabase reading_activities fetch notice:', readingActsRes.error.message);
+      }
+    } else if (readingActsRes.data !== null && readingActsRes.data.length > 0) {
+      result.readingActivities = readingActsRes.data.map((row: any) => ({
+        id: row.id,
+        santri_id: row.santri_id,
+        student_name: row.student_name || row.santri_name || '',
+        santri_name: row.santri_name || row.student_name || '',
+        student_nis: row.student_nis || row.santri_nis || '',
+        santri_nis: row.santri_nis || row.student_nis || '',
+        book_id: row.book_id || undefined,
+        book_title: row.book_title || 'Buku Bacaan Santri',
+        date: row.date,
+        start_time: row.start_time || undefined,
+        end_time: row.end_time || undefined,
+        duration_minutes: Number(row.duration_minutes) || 0,
+        target_reached: Boolean(row.target_reached),
+        visit_id: row.visit_id || undefined,
+        notes: row.notes || '',
+        created_at: row.created_at || new Date().toISOString(),
+      }));
+    }
+
+    // 11. Reading Streak Config from Supabase
+    if (!streakConfigRes.error && streakConfigRes.data && streakConfigRes.data.length > 0) {
+      const confRow = streakConfigRes.data[0];
+      result.readingStreakConfig = {
+        enabled: Boolean(confRow.enabled),
+        daily_target_minutes: Number(confRow.daily_target_minutes) || 15,
+        milestones: Array.isArray(confRow.milestones) ? confRow.milestones : [],
+      };
+    }
+
+    // 12. Library Settings from Supabase
+    if (!settingsRes.error && settingsRes.data && settingsRes.data.length > 0) {
+      const setRow = settingsRes.data[0];
+      if (setRow.settings && typeof setRow.settings === 'object') {
+        result.librarySettings = setRow.settings;
+      }
     }
 
     return result;
@@ -1396,6 +1535,233 @@ export async function deleteWishlistFromSupabase(wishlist: { id: string }): Prom
   }
 }
 
+// --- READING ACTIVITIES & READING STREAK (v2.8.8) OPERATIONS ---
+let isReadingTableAvailable: boolean | null = null;
+
+export async function fetchReadingActivitiesFromSupabase(santriId?: string): Promise<ReadingActivity[]> {
+  if (!isSupabaseConfigured) return [];
+  if (isReadingTableAvailable === false) return [];
+  try {
+    let query = supabase.from('reading_activities').select('*').order('date', { ascending: false });
+    if (santriId) {
+      query = query.eq('santri_id', santriId);
+    }
+    const { data, error } = await query.limit(500);
+    if (error) {
+      if (isSchemaCacheOrMissingTableError(error)) {
+        isReadingTableAvailable = false;
+        console.info('[Supabase Sync] Tabel public.reading_activities belum ada di Supabase.');
+      }
+      return [];
+    }
+    if (!data) return [];
+    isReadingTableAvailable = true;
+    return data.map((row: any) => ({
+      id: row.id,
+      santri_id: row.santri_id,
+      student_name: row.student_name || row.santri_name || '',
+      santri_name: row.santri_name || row.student_name || '',
+      student_nis: row.student_nis || row.santri_nis || '',
+      santri_nis: row.santri_nis || row.student_nis || '',
+      book_id: row.book_id || undefined,
+      book_title: row.book_title || 'Buku Bacaan Santri',
+      date: row.date,
+      start_time: row.start_time || undefined,
+      end_time: row.end_time || undefined,
+      duration_minutes: Number(row.duration_minutes) || 0,
+      target_reached: Boolean(row.target_reached),
+      visit_id: row.visit_id || undefined,
+      notes: row.notes || '',
+      created_at: row.created_at || new Date().toISOString(),
+    }));
+  } catch (err: any) {
+    if (isSchemaCacheOrMissingTableError(err)) {
+      isReadingTableAvailable = false;
+      return [];
+    }
+    console.warn('Supabase fetch reading activities error:', err);
+    return [];
+  }
+}
+
+export async function insertReadingActivityToSupabase(activity: ReadingActivity): Promise<{ success: boolean; id?: string; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  if (isReadingTableAvailable === false) return { success: true };
+  try {
+    const payload: any = {
+      santri_id: activity.santri_id,
+      student_name: activity.student_name || activity.santri_name || null,
+      santri_name: activity.santri_name || activity.student_name || null,
+      student_nis: activity.student_nis || activity.santri_nis || null,
+      santri_nis: activity.santri_nis || activity.student_nis || null,
+      book_id: activity.book_id || null,
+      book_title: activity.book_title || null,
+      date: activity.date,
+      start_time: activity.start_time || null,
+      end_time: activity.end_time || null,
+      duration_minutes: Number(activity.duration_minutes) || 0,
+      target_reached: Boolean(activity.target_reached),
+      visit_id: activity.visit_id || null,
+      notes: activity.notes || null,
+      created_at: activity.created_at || new Date().toISOString(),
+    };
+
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activity.id)) {
+      payload.id = activity.id;
+    }
+
+    const { data, error } = await supabase
+      .from('reading_activities')
+      .upsert(payload)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      if (isSchemaCacheOrMissingTableError(error)) {
+        isReadingTableAvailable = false;
+        return { success: true };
+      }
+      console.warn('Supabase insert reading activity error:', error.message);
+      return { success: false, error: error.message };
+    }
+    isReadingTableAvailable = true;
+    return { success: true, id: data?.id || activity.id };
+  } catch (e: any) {
+    if (isSchemaCacheOrMissingTableError(e)) {
+      isReadingTableAvailable = false;
+      return { success: true };
+    }
+    console.warn('Supabase insert reading activity exception:', e);
+    return { success: false, error: e?.message || String(e) };
+  }
+}
+
+export async function deleteReadingActivityFromSupabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  if (isReadingTableAvailable === false) return true;
+  try {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUUID) return true;
+
+    const { error } = await supabase.from('reading_activities').delete().eq('id', id);
+    if (error) {
+      if (isSchemaCacheOrMissingTableError(error)) {
+        isReadingTableAvailable = false;
+        return true;
+      }
+      console.warn('Supabase delete reading activity error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    if (isSchemaCacheOrMissingTableError(e)) {
+      isReadingTableAvailable = false;
+      return true;
+    }
+    console.warn('Supabase delete reading activity exception:', e);
+    return false;
+  }
+}
+
+export async function fetchReadingStreakConfigFromSupabase(): Promise<ReadingStreakConfig | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase
+      .from('reading_streak_configs')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return {
+      enabled: Boolean(data.enabled),
+      daily_target_minutes: Number(data.daily_target_minutes) || 15,
+      milestones: Array.isArray(data.milestones) ? data.milestones : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveReadingStreakConfigToSupabase(config: ReadingStreakConfig): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const payload = {
+      id: 'main_config',
+      enabled: Boolean(config.enabled),
+      daily_target_minutes: Number(config.daily_target_minutes) || 15,
+      milestones: config.milestones || [],
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('reading_streak_configs')
+      .upsert(payload, { onConflict: 'id' });
+    return !error;
+  } catch (e) {
+    console.warn('Supabase save streak config exception:', e);
+    return false;
+  }
+}
+
+// --- SANTRI NOTIFICATIONS ---
+export async function fetchSantriNotificationsFromSupabase(santriId?: string): Promise<any[]> {
+  if (!isSupabaseConfigured) return [];
+  try {
+    let query = supabase.from('santri_notifications').select('*').order('created_at', { ascending: false });
+    if (santriId) {
+      query = query.eq('santri_id', santriId);
+    }
+    const { data, error } = await query.limit(100);
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+export async function insertSantriNotificationToSupabase(notification: {
+  santri_id: string;
+  title: string;
+  message: string;
+  type?: 'info' | 'streak' | 'loan' | 'award';
+  link_route?: string;
+}): Promise<{ success: boolean; id?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  try {
+    const { data, error } = await supabase
+      .from('santri_notifications')
+      .insert({
+        santri_id: notification.santri_id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type || 'info',
+        link_route: notification.link_route || null,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (error) return { success: false };
+    return { success: true, id: data?.id };
+  } catch {
+    return { success: false };
+  }
+}
+
+export async function markNotificationReadInSupabase(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  try {
+    const { error } = await supabase
+      .from('santri_notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * ============================================================================
  * SUPABASE REALTIME SUBSCRIPTION & INSTANT BROADCAST SYSTEM
@@ -1421,6 +1787,8 @@ export type RealtimeBroadcastType =
   | 'AWARD_CHANGE'
   | 'WISHLIST_CHANGE'
   | 'SANTRI_MENU_CHANGE'
+  | 'READING_ACTIVITY_CHANGE'
+  | 'READING_CONFIG_CHANGE'
   | 'FORCE_SYNC';
 
 export interface RealtimeBroadcastPayload {
@@ -1484,6 +1852,8 @@ export interface RealtimeHandlers {
   onAwardChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onWishlistChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onSantriMenuChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
+  onReadingActivityChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
+  onReadingConfigChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE', newRow: any, oldRow: any) => void;
   onStatusChange?: (status: 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR') => void;
   onForceSync?: () => void;
 }
@@ -1520,6 +1890,12 @@ export function subscribeToAllDatabaseChanges(handlers: RealtimeHandlers): { uns
         break;
       case 'SANTRI_MENU_CHANGE':
         if (handlers.onSantriMenuChange) handlers.onSantriMenuChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'READING_ACTIVITY_CHANGE':
+        if (handlers.onReadingActivityChange) handlers.onReadingActivityChange(data.action as any, data.payload, data.oldPayload);
+        break;
+      case 'READING_CONFIG_CHANGE':
+        if (handlers.onReadingConfigChange) handlers.onReadingConfigChange(data.action as any, data.payload, data.oldPayload);
         break;
       case 'FORCE_SYNC':
         if (handlers.onForceSync) handlers.onForceSync();
@@ -1626,6 +2002,24 @@ export function subscribeToAllDatabaseChanges(handlers: RealtimeHandlers): { uns
       (payload) => {
         if (handlers.onSantriMenuChange) {
           handlers.onSantriMenuChange(payload.eventType as any, payload.new, payload.old);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'reading_activities' },
+      (payload) => {
+        if (handlers.onReadingActivityChange) {
+          handlers.onReadingActivityChange(payload.eventType as any, payload.new, payload.old);
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'reading_streak_configs' },
+      (payload) => {
+        if (handlers.onReadingConfigChange) {
+          handlers.onReadingConfigChange(payload.eventType as any, payload.new, payload.old);
         }
       }
     )

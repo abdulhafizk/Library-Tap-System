@@ -45,43 +45,64 @@ export const initialLoans: BookLoan[] = [];
 export const initialWishlists: BookWishlist[] = [];
 export const initialNotifications: NotificationItem[] = [];
 
-export const supabaseSqlSchema = `-- SCHEMA DATABASE SUPABASE: Library Tap System
--- Dijalankan pada Supabase SQL Editor
+export const supabaseSqlSchema = `-- ============================================================================
+-- SCHEMA DATABASE SUPABASE LENGKAP: Library Tap System & Santri Reading Portal
+-- Versi: 2.8.8 (Terpadu: Master, Sirkulasi, Reading Streak & Notifikasi)
+-- Jalankan pada Supabase Dashboard -> SQL Editor -> New Query -> Run
+-- ============================================================================
 
--- 1. Table Users
+-- 1. EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- 2. TABLE USERS (Petugas, Admin & Akun Santri)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(100) UNIQUE,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff')),
+    password VARCHAR(255),
+    role VARCHAR(50) NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff', 'SANTRI')),
     avatar_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    phone VARCHAR(30),
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    student_id UUID,
+    is_default BOOLEAN DEFAULT false,
+    is_first_login BOOLEAN DEFAULT false,
+    password_changed BOOLEAN DEFAULT false,
+    last_login TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 2. Table Students
+-- 3. TABLE STUDENTS (Master Data Santri & Siswa)
 CREATE TABLE IF NOT EXISTS students (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nis VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     class VARCHAR(50) NOT NULL,
+    class_grade VARCHAR(50),
+    dormitory VARCHAR(100),
     gender CHAR(1) NOT NULL CHECK (gender IN ('L', 'P')),
     photo_url TEXT,
     phone VARCHAR(30),
+    parent_phone VARCHAR(30),
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'graduated', 'suspended', 'leave')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 3. Table RFID Cards
+-- 4. TABLE RFID CARDS (Kartu Akses Perpustakaan)
 CREATE TABLE IF NOT EXISTS rfid_cards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     uid VARCHAR(100) UNIQUE NOT NULL,
     student_id UUID REFERENCES students(id) ON DELETE SET NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'lost')),
     note TEXT,
-    registered_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    registered_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 4. Table Library Visits
+-- 5. TABLE LIBRARY VISITS (Riwayat Presensi Kunjungan Tap RFID)
 CREATE TABLE IF NOT EXISTS library_visits (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -92,10 +113,11 @@ CREATE TABLE IF NOT EXISTS library_visits (
     duration_minutes INTEGER,
     status VARCHAR(50) NOT NULL DEFAULT 'inside' CHECK (status IN ('inside', 'completed')),
     notes TEXT,
+    device_id VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Table Books (Katalog Buku & Kitab)
+-- 6. TABLE BOOKS (Katalog Buku & Kitab Turats)
 CREATE TABLE IF NOT EXISTS books (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(100) UNIQUE NOT NULL,
@@ -109,10 +131,12 @@ CREATE TABLE IF NOT EXISTS books (
     available_stock INTEGER NOT NULL DEFAULT 1,
     cover_url TEXT,
     isbn VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 6. Table Book Loans (Sirkulasi Peminjaman & Pengembalian)
+-- 7. TABLE BOOK LOANS (Sirkulasi Peminjaman & Pengembalian)
 CREATE TABLE IF NOT EXISTS book_loans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_code VARCHAR(100) UNIQUE NOT NULL,
@@ -124,10 +148,11 @@ CREATE TABLE IF NOT EXISTS book_loans (
     status VARCHAR(50) NOT NULL DEFAULT 'borrowed' CHECK (status IN ('borrowed', 'returned', 'overdue')),
     fine_amount NUMERIC(10, 2) DEFAULT 0,
     notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 7. Table Literacy Awards (Arsip Piagam & Penghargaan Santri)
+-- 8. TABLE LITERACY AWARDS (Arsip Piagam & Penghargaan Santri)
 CREATE TABLE IF NOT EXISTS literacy_awards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID REFERENCES students(id) ON DELETE SET NULL,
@@ -145,7 +170,7 @@ CREATE TABLE IF NOT EXISTS literacy_awards (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 8. Table Usulan Buku & Kitab Baru Santri (Wishlist)
+-- 9. TABLE BOOK WISHLISTS (Usulan Buku & Kitab Santri)
 CREATE TABLE IF NOT EXISTS book_wishlists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID REFERENCES students(id) ON DELETE CASCADE,
@@ -165,7 +190,7 @@ CREATE TABLE IF NOT EXISTS book_wishlists (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 9. Table Pengaturan Menu Santri (Santri Menus Management)
+-- 10. TABLE SANTRI MENUS (Manajemen Fitur & Menu Portal Santri)
 CREATE TABLE IF NOT EXISTS santri_menus (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     menu_key VARCHAR(100) UNIQUE NOT NULL,
@@ -177,29 +202,146 @@ CREATE TABLE IF NOT EXISTS santri_menus (
     sort_order INT NOT NULL DEFAULT 1,
     category VARCHAR(50) DEFAULT 'utama',
     badge VARCHAR(50),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- 9. Indexes for fast lookup and reporting
+-- 11. TABLE READING ACTIVITIES (Sesi Membaca & Muthola'ah Terverifikasi)
+CREATE TABLE IF NOT EXISTS reading_activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    santri_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    student_name VARCHAR(255),
+    santri_name VARCHAR(255),
+    student_nis VARCHAR(50),
+    santri_nis VARCHAR(50),
+    book_id UUID REFERENCES books(id) ON DELETE SET NULL,
+    book_title VARCHAR(255),
+    date DATE NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE,
+    end_time TIMESTAMP WITH TIME ZONE,
+    duration_minutes INTEGER NOT NULL CHECK (duration_minutes >= 0),
+    target_reached BOOLEAN NOT NULL DEFAULT FALSE,
+    visit_id UUID REFERENCES library_visits(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 12. TABLE READING DAILY SUMMARIES (Agregat Harian Per Santri)
+CREATE TABLE IF NOT EXISTS reading_daily_summaries (
+    id VARCHAR(100) PRIMARY KEY, -- Format: sum_{santri_id}_{date}
+    santri_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    total_duration_minutes INTEGER NOT NULL DEFAULT 0,
+    target_minutes INTEGER NOT NULL DEFAULT 15,
+    target_reached BOOLEAN NOT NULL DEFAULT FALSE,
+    sessions_count INTEGER NOT NULL DEFAULT 1,
+    books_read JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT uq_santri_date UNIQUE(santri_id, date)
+);
+
+-- 13. TABLE READING STREAKS (Cache Metrik & Capaian Streak Santri)
+CREATE TABLE IF NOT EXISTS reading_streaks (
+    santri_id UUID PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+    current_streak INTEGER NOT NULL DEFAULT 0,
+    longest_streak INTEGER NOT NULL DEFAULT 0,
+    total_reading_days INTEGER NOT NULL DEFAULT 0,
+    total_reading_minutes INTEGER NOT NULL DEFAULT 0,
+    total_books_read INTEGER NOT NULL DEFAULT 0,
+    last_reading_date DATE,
+    current_milestone VARCHAR(100),
+    unlocked_milestones JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 14. TABLE READING STREAK CONFIGS (Pengaturan Target & Milestone)
+CREATE TABLE IF NOT EXISTS reading_streak_configs (
+    id VARCHAR(50) PRIMARY KEY DEFAULT 'main_config',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    daily_target_minutes INTEGER NOT NULL DEFAULT 15,
+    milestones JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 15. TABLE LIBRARY SETTINGS (Pengaturan Sistem Perpustakaan)
+CREATE TABLE IF NOT EXISTS library_settings (
+    id VARCHAR(50) PRIMARY KEY DEFAULT 'main_settings',
+    settings JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 16. TABLE SANTRI NOTIFICATIONS (Notifikasi & Pengumuman Santri)
+CREATE TABLE IF NOT EXISTS santri_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'info',
+    category VARCHAR(50) DEFAULT 'general',
+    is_read BOOLEAN DEFAULT false,
+    is_seen BOOLEAN DEFAULT false,
+    link_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    read_at TIMESTAMP WITH TIME ZONE,
+    seen_at TIMESTAMP WITH TIME ZONE
+);
+
+-- ============================================================================
+-- SAFE COLUMN MIGRATIONS (Untuk Database yang Telah Ada Sebelumnya)
+-- ============================================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS student_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_first_login BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS class_grade VARCHAR(50);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS dormitory VARCHAR(100);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(30);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE books ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE books ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS student_name VARCHAR(255);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS santri_name VARCHAR(255);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS student_nis VARCHAR(50);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS santri_nis VARCHAR(50);
+
+-- ============================================================================
+-- INDEXES UNTUK KINERJA & PENCARIAN TINGGI
+-- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_rfid_cards_uid ON rfid_cards(uid);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_students_nis ON students(nis);
 CREATE INDEX IF NOT EXISTS idx_students_class ON students(class);
+CREATE INDEX IF NOT EXISTS idx_rfid_cards_uid ON rfid_cards(uid);
+CREATE INDEX IF NOT EXISTS idx_visits_student ON library_visits(student_id);
 CREATE INDEX IF NOT EXISTS idx_visits_status ON library_visits(status);
-CREATE INDEX IF NOT EXISTS idx_visits_student_active ON library_visits(student_id, status);
 CREATE INDEX IF NOT EXISTS idx_visits_check_in ON library_visits(check_in);
 CREATE INDEX IF NOT EXISTS idx_books_code ON books(code);
 CREATE INDEX IF NOT EXISTS idx_books_category ON books(category);
-CREATE INDEX IF NOT EXISTS idx_book_loans_status ON book_loans(status);
+CREATE INDEX IF NOT EXISTS idx_book_loans_loan_code ON book_loans(loan_code);
 CREATE INDEX IF NOT EXISTS idx_book_loans_student ON book_loans(student_id);
 CREATE INDEX IF NOT EXISTS idx_book_loans_book ON book_loans(book_id);
+CREATE INDEX IF NOT EXISTS idx_book_loans_status ON book_loans(status);
 CREATE INDEX IF NOT EXISTS idx_awards_student ON literacy_awards(student_id);
 CREATE INDEX IF NOT EXISTS idx_awards_certificate_no ON literacy_awards(certificate_no);
 CREATE INDEX IF NOT EXISTS idx_wishlists_student ON book_wishlists(student_id);
 CREATE INDEX IF NOT EXISTS idx_wishlists_status ON book_wishlists(status);
+CREATE INDEX IF NOT EXISTS idx_reading_activities_santri ON reading_activities(santri_id);
+CREATE INDEX IF NOT EXISTS idx_reading_activities_date ON reading_activities(date);
+CREATE INDEX IF NOT EXISTS idx_reading_activities_santri_date ON reading_activities(santri_id, date);
+CREATE INDEX IF NOT EXISTS idx_notifications_student ON santri_notifications(student_id);
 
--- 10. Trigger to automatically compute duration on check_out
+-- ============================================================================
+-- OTOMASI DURASI KUNJUNGAN PERPUSTAKAAN
+-- ============================================================================
 CREATE OR REPLACE FUNCTION compute_visit_duration()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -211,12 +353,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE TRIGGER trigger_compute_visit_duration
+DROP TRIGGER IF EXISTS trigger_compute_visit_duration ON library_visits;
+CREATE TRIGGER trigger_compute_visit_duration
 BEFORE UPDATE ON library_visits
 FOR EACH ROW
 EXECUTE FUNCTION compute_visit_duration();
 
--- 11. Row Level Security (RLS)
+-- ============================================================================
+-- ROW LEVEL SECURITY (RLS) & KEBIJAKAN AKSES
+-- ============================================================================
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rfid_cards ENABLE ROW LEVEL SECURITY;
@@ -226,6 +371,12 @@ ALTER TABLE book_loans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE literacy_awards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE book_wishlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE santri_menus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_daily_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_streaks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_streak_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE library_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE santri_notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow full access for users" ON users;
 CREATE POLICY "Allow full access for users" ON users FOR ALL USING (true) WITH CHECK (true);
@@ -254,19 +405,41 @@ CREATE POLICY "Allow full access for book_wishlists" ON book_wishlists FOR ALL U
 DROP POLICY IF EXISTS "Allow full access for santri_menus" ON santri_menus;
 CREATE POLICY "Allow full access for santri_menus" ON santri_menus FOR ALL USING (true) WITH CHECK (true);
 
--- 12. Enable Supabase Realtime (Instant Live Updates across all devices without page refresh)
+DROP POLICY IF EXISTS "Allow full access for reading_activities" ON reading_activities;
+CREATE POLICY "Allow full access for reading_activities" ON reading_activities FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_daily_summaries" ON reading_daily_summaries;
+CREATE POLICY "Allow full access for reading_daily_summaries" ON reading_daily_summaries FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_streaks" ON reading_streaks;
+CREATE POLICY "Allow full access for reading_streaks" ON reading_streaks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_streak_configs" ON reading_streak_configs;
+CREATE POLICY "Allow full access for reading_streak_configs" ON reading_streak_configs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for library_settings" ON library_settings;
+CREATE POLICY "Allow full access for library_settings" ON library_settings FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for santri_notifications" ON santri_notifications;
+CREATE POLICY "Allow full access for santri_notifications" ON santri_notifications FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- SUPABASE REALTIME & REPLICA IDENTITY (SINKRONISASI LIVE MULTI-PERANGKAT)
+-- ============================================================================
 DO $$
 BEGIN
-    -- Tambahkan tabel ke publication realtime jika belum ada
     PERFORM 1 FROM pg_publication WHERE pubname = 'supabase_realtime';
     IF FOUND THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE users, students, rfid_cards, library_visits, books, book_loans, literacy_awards, book_wishlists, santri_menus;
+        ALTER PUBLICATION supabase_realtime ADD TABLE 
+            users, students, rfid_cards, library_visits, 
+            books, book_loans, literacy_awards, book_wishlists, 
+            santri_menus, reading_activities, reading_streaks, 
+            reading_streak_configs, library_settings, santri_notifications;
     END IF;
 EXCEPTION WHEN duplicate_object THEN
-    NULL; -- Abaikan jika tabel sudah terdaftar dalam publikasi
+    NULL;
 END $$;
 
--- Full Replica Identity ensures updated/deleted rows contain complete records in realtime payloads
 ALTER TABLE users REPLICA IDENTITY FULL;
 ALTER TABLE students REPLICA IDENTITY FULL;
 ALTER TABLE rfid_cards REPLICA IDENTITY FULL;
@@ -276,6 +449,11 @@ ALTER TABLE book_loans REPLICA IDENTITY FULL;
 ALTER TABLE literacy_awards REPLICA IDENTITY FULL;
 ALTER TABLE book_wishlists REPLICA IDENTITY FULL;
 ALTER TABLE santri_menus REPLICA IDENTITY FULL;
+ALTER TABLE reading_activities REPLICA IDENTITY FULL;
+ALTER TABLE reading_streaks REPLICA IDENTITY FULL;
+ALTER TABLE reading_streak_configs REPLICA IDENTITY FULL;
+ALTER TABLE library_settings REPLICA IDENTITY FULL;
+ALTER TABLE santri_notifications REPLICA IDENTITY FULL;
 `;
 
 /**

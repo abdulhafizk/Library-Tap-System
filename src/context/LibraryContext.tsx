@@ -96,7 +96,10 @@ import {
   checkSupabaseTableAvailability,
   fetchSantriMenusFromSupabase,
   upsertSantriMenuInSupabase,
-  batchSaveSantriMenusToSupabase
+  batchSaveSantriMenusToSupabase,
+  insertReadingActivityToSupabase,
+  deleteReadingActivityFromSupabase,
+  saveReadingStreakConfigToSupabase
 } from '../lib/supabaseSync';
 import { 
   isSupabaseConfigured,
@@ -887,6 +890,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return Array.from(map.values());
           });
         }
+        if (res.readingActivities && res.readingActivities.length > 0) {
+          setReadingActivities(res.readingActivities);
+          readingActivitiesRef.current = res.readingActivities;
+        }
+        if (res.readingStreakConfig) {
+          setSettings(prev => ({
+            ...prev,
+            reading_streak: res.readingStreakConfig
+          }));
+        }
+        if (res.librarySettings) {
+          setSettings(prev => ({ ...prev, ...res.librarySettings }));
+        }
       }
     }).catch((err) => {
       console.warn('Initial Supabase fetch warning:', err);
@@ -1010,6 +1026,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
           if (res.santriMenus !== undefined && res.santriMenus.length > 0) {
             setSantriMenus(res.santriMenus);
+          }
+          if (res.readingActivities !== undefined && res.readingActivities.length > 0) {
+            setReadingActivities(res.readingActivities);
+            readingActivitiesRef.current = res.readingActivities;
+          }
+          if (res.readingStreakConfig !== undefined) {
+            setSettings(prev => ({
+              ...prev,
+              reading_streak: res.readingStreakConfig
+            }));
+          }
+          if (res.librarySettings !== undefined) {
+            setSettings(prev => ({ ...prev, ...res.librarySettings }));
           }
           setLastRealtimeSync(new Date().toISOString());
           setIsRealtimeConnected(true);
@@ -1315,6 +1344,60 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
             return [...prev, updatedMenu].sort((a, b) => a.sort_order - b.sort_order);
           });
+        }
+      },
+      onReadingActivityChange: (event, newRow, oldRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
+        if (event === 'DELETE') {
+          const delId = oldRow?.id;
+          if (delId) {
+            setReadingActivities(prev => {
+              const filtered = prev.filter(a => a.id !== delId);
+              readingActivitiesRef.current = filtered;
+              return filtered;
+            });
+          }
+        } else if (event === 'INSERT' || event === 'UPDATE') {
+          const act: ReadingActivity = {
+            id: newRow.id,
+            santri_id: newRow.santri_id,
+            student_name: newRow.student_name || newRow.santri_name || '',
+            santri_name: newRow.santri_name || newRow.student_name || '',
+            student_nis: newRow.student_nis || newRow.santri_nis || '',
+            santri_nis: newRow.santri_nis || newRow.student_nis || '',
+            book_id: newRow.book_id || undefined,
+            book_title: newRow.book_title || 'Muthola\'ah di Perpustakaan',
+            date: newRow.date,
+            start_time: newRow.start_time || undefined,
+            end_time: newRow.end_time || undefined,
+            duration_minutes: Number(newRow.duration_minutes) || 0,
+            target_reached: Boolean(newRow.target_reached),
+            visit_id: newRow.visit_id || undefined,
+            notes: newRow.notes || '',
+            created_at: newRow.created_at || new Date().toISOString(),
+          };
+          setReadingActivities(prev => {
+            const exists = prev.some(a => a.id === act.id);
+            const updated = exists ? prev.map(a => a.id === act.id ? act : a) : [act, ...prev];
+            readingActivitiesRef.current = updated;
+            return updated;
+          });
+        }
+      },
+      onReadingConfigChange: (_event, newRow) => {
+        setLastRealtimeSync(new Date().toISOString());
+        setIsRealtimeConnected(true);
+        if (newRow) {
+          const configObj: ReadingStreakConfig = {
+            enabled: Boolean(newRow.enabled),
+            daily_target_minutes: Number(newRow.daily_target_minutes) || 15,
+            milestones: Array.isArray(newRow.milestones) ? newRow.milestones : DEFAULT_STREAK_MILESTONES,
+          };
+          setSettings(prev => ({
+            ...prev,
+            reading_streak: configObj
+          }));
         }
       },
       onStatusChange: (status) => {
@@ -1703,6 +1786,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         'success'
       );
     }
+
+    // Save to Supabase Cloud & Broadcast Realtime
+    insertReadingActivityToSupabase(newAct).catch(err => {
+      if (!isSchemaCacheOrMissingTableError(err)) {
+        console.warn('Supabase reading activity insert notice:', err);
+      }
+    });
+    broadcastRealtimeAction({
+      type: 'READING_ACTIVITY_CHANGE',
+      action: 'INSERT',
+      payload: newAct
+    });
   }, [settings.reading_streak, pushNotification]);
 
   const getSantriStreak = useCallback((santriId: string): SantriStreak => {
@@ -1754,6 +1849,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
     }
 
+    // Persist to Supabase and Realtime Broadcast
+    insertReadingActivityToSupabase(newAct).catch(err => {
+      if (!isSchemaCacheOrMissingTableError(err)) {
+        console.warn('Supabase reading activity insert notice:', err);
+      }
+    });
+    broadcastRealtimeAction({
+      type: 'READING_ACTIVITY_CHANGE',
+      action: 'INSERT',
+      payload: newAct
+    });
+
     return {
       success: true,
       message: isNewStreakDay
@@ -1767,10 +1874,23 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [settings.reading_streak, settings.sound_enabled, pushNotification]);
 
   const deleteReadingActivity = useCallback(async (id: string): Promise<boolean> => {
+    const target = readingActivitiesRef.current.find(a => a.id === id);
     const updated = readingActivitiesRef.current.filter(a => a.id !== id);
     readingActivitiesRef.current = updated;
     setReadingActivities(updated);
     localStorage.setItem(STORAGE_KEYS.READING_ACTIVITIES, JSON.stringify(updated));
+
+    deleteReadingActivityFromSupabase(id).catch(err => {
+      if (!isSchemaCacheOrMissingTableError(err)) {
+        console.warn('Supabase reading activity delete notice:', err);
+      }
+    });
+    broadcastRealtimeAction({
+      type: 'READING_ACTIVITY_CHANGE',
+      action: 'DELETE',
+      payload: null,
+      oldPayload: target || { id }
+    });
     return true;
   }, []);
 
@@ -1787,6 +1907,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         reading_streak: updatedConfig
       };
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
+
+      saveReadingStreakConfigToSupabase(updatedConfig).catch(err => {
+        if (!isSchemaCacheOrMissingTableError(err)) {
+          console.warn('Supabase reading streak config save notice:', err);
+        }
+      });
+      broadcastRealtimeAction({
+        type: 'READING_CONFIG_CHANGE',
+        action: 'UPDATE',
+        payload: updatedConfig
+      });
+
       return newSettings;
     });
   }, []);
@@ -4230,10 +4362,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         awards,
         wishlists,
         santriMenus,
+        readingActivities,
+        readingStreakConfig: settings.reading_streak,
       });
 
       if (res.success) {
-        pushNotification('Sinkronisasi Supabase Berhasil', 'Data santri, buku, kartu, arsip piagam, dan menu portal santri telah berhasil diperbarui ke Supabase.', 'success');
+        pushNotification('Sinkronisasi Supabase Berhasil', 'Data santri, buku, kartu, arsip piagam, menu portal santri, dan reading streak telah berhasil diperbarui ke Supabase.', 'success');
       } else {
         pushNotification('Sinkronisasi Supabase Terkendala', res.message, 'warning');
       }
@@ -4246,7 +4380,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } finally {
       setIsSupabaseSyncing(false);
     }
-  }, [students, cards, books, loans, visits, users, awards, wishlists, santriMenus, pushNotification]);
+  }, [students, cards, books, loans, visits, users, awards, wishlists, santriMenus, readingActivities, settings.reading_streak, pushNotification]);
 
   const pullFromSupabase = useCallback(async (): Promise<{ success: boolean; message: string }> => {
     if (!isSupabaseConfigured) {
@@ -4291,6 +4425,20 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSantriMenus(res.santriMenus);
         updatedCount += res.santriMenus.length;
       }
+      if (res.readingActivities !== undefined && res.readingActivities.length > 0) {
+        setReadingActivities(res.readingActivities);
+        readingActivitiesRef.current = res.readingActivities;
+        updatedCount += res.readingActivities.length;
+      }
+      if (res.readingStreakConfig !== undefined) {
+        setSettings(prev => ({
+          ...prev,
+          reading_streak: res.readingStreakConfig
+        }));
+      }
+      if (res.librarySettings !== undefined) {
+        setSettings(prev => ({ ...prev, ...res.librarySettings }));
+      }
       if (res.users !== undefined && res.users.length > 0) {
         setUsers(prev => {
           const map = new Map<string, AppUser>();
@@ -4308,7 +4456,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedCount += res.users.length;
       }
 
-      const msg = `Berhasil memuat ${updatedCount} data (termasuk piagam, menu santri, & akun) dari database cloud Supabase.`;
+      const msg = `Berhasil memuat ${updatedCount} data (termasuk reading streak, piagam, menu santri, & akun) dari database cloud Supabase.`;
       pushNotification('Tarik Data Supabase Berhasil', msg, 'success');
       return { success: true, message: msg };
     } catch (err: any) {

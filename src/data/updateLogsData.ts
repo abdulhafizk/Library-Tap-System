@@ -19,10 +19,47 @@ export interface AppReleaseLog {
 
 export const appUpdateLogs: AppReleaseLog[] = [
   {
+    version: 'v2.8.8',
+    releaseDate: '19 September 2026',
+    tagline: 'Penyelarasan Skema Supabase, Real-Time CDC & Sinkronisasi Cloud Otomatis Reading Streak',
+    isLatest: true,
+    highlights: [
+      'Pembaruan Skema Lengkap Supabase: Penyempurnaan DDL untuk tabel reading_activities, reading_streak_configs, reading_streaks, reading_daily_summaries, library_settings, dan santri_notifications beserta indeks performa query tinggi',
+      'Sinkronisasi Real-Time Dua Arah: Penambahan kanal broadcast & listener Postgres CDC (READING_ACTIVITY_CHANGE & READING_CONFIG_CHANGE) agar setiap perubahan di panel admin langsung terlihat di dashboard santri',
+      'Pengambilan Data Cloud Menyeluruh (fetchAllFromSupabase & pullFromSupabase): Memuat riwayat muthola\'ah, target harian, dan milestone reading streak dari database cloud ke state lokal tanpa delay',
+      'Otomasi Simpan Cloud dari Presensi RFID & Verifikasi Admin: Setiap kali santri tap checkout perpustakaan atau admin memvalidasi muthola\'ah, data langsung tersimpan ke Supabase Cloud secara asinkron dan aman',
+      'Toleransi Kesalahan Skema & Dukungan Offline Queue: Penanganan graceful jika tabel belum dimigrasi di proyek Supabase pengguna, menjaga kelancaran operasi perpustakaan'
+    ],
+    changes: [
+      {
+        category: 'feature',
+        items: [
+          'Pengambilan Data Reading Streak dari Cloud: fetchAllFromSupabase dan pullFromSupabase kini memuat reading_activities dan reading_streak_configs dari Supabase Cloud.',
+          'Postgres Changes & Broadcast CDC: Menghubungkan listener realtime pada tabel reading_activities dan reading_streak_configs di LibraryContext.',
+          'Sinkronisasi Otomatis saat Kunjungan Tap RFID: recordReadingActivityFromVisit dan addReadingActivity otomatis mengirim sesi muthola\'ah ke Supabase Cloud.'
+        ]
+      },
+      {
+        category: 'improvement',
+        items: [
+          'Pembaruan Kode Skema Supabase (supabaseSqlSchema): Menyediakan skema SQL termutakhir yang siap dieksekusi di Supabase SQL Editor dengan constraint foreign key, indeks, dan RLS aman.',
+          'Penyempurnaan syncAllToSupabase: Menambahkan sinkronisasi readingActivities dan konfigurasi reading streak ke Supabase Cloud.',
+          'Refleksi Instan pada Dashboard Santri: Data reading streak di dashboard santri secara otomatis mencerminkan data terverifikasi dari admin dan presensi fisik perpustakaan.'
+        ]
+      },
+      {
+        category: 'security',
+        items: [
+          'Integritas Data Cloud Berbasis Server: Memastikan data streak tidak dapat dimanipulasi di sisi klien karena seluruh perhitungan bersumber dari tabel reading_activities yang terverifikasi di Supabase.'
+        ]
+      }
+    ]
+  },
+  {
     version: 'v2.8.7',
     releaseDate: '19 September 2026',
     tagline: 'Otoritas Tunggal Reading Streak Berbasis Presensi RFID & Verifikasi Admin, Penghapusan Tombol Manual Santri',
-    isLatest: true,
+    isLatest: false,
     highlights: [
       'Otoritas Sumber Data Tunggal (Single Source of Truth): Reading streak santri sepenuhnya divalidasi oleh sistem admin dan presensi perpustakaan berbasis RFID untuk mencegah manipulasi/kecurangan',
       'Penghapusan Input Manual Santri: Tombol "Mulai Membaca Sekarang" di seluruh dashboard santri telah ditiadakan dan digantikan dengan indikator verifikasi resmi serta pengingat kunjungan',

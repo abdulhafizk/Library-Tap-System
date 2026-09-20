@@ -43,11 +43,14 @@ export interface Student {
   nis: string;
   name: string;
   class: string;
+  class_grade?: string; // e.g. '10-A', '7-Ula'
+  dormitory?: string; // Asrama / Kamar santri (e.g. 'Al-Ghazali 03')
   gender: Gender;
   photo_url: string;
   rfid_uid?: string;
   status: StudentStatus;
   phone?: string;
+  parent_phone?: string;
   created_at: string;
 }
 

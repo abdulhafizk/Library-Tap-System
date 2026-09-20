@@ -537,13 +537,17 @@ export function generateSampleReadingActivities(students: Student[], targetMinut
   return activities;
 }
 
-export const SUPABASE_READING_STREAK_SQL = `-- SCHEMA SUPABASE: Reading Streak & Aktivitas Membaca Santri
+export const SUPABASE_READING_STREAK_SQL = `-- SCHEMA SUPABASE: Reading Streak & Aktivitas Membaca Santri (Versi Terpadu)
 -- Jalankan pada Supabase SQL Editor
 
 -- 1. Table Reading Activities
 CREATE TABLE IF NOT EXISTS reading_activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     santri_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    student_name VARCHAR(255),
+    santri_name VARCHAR(255),
+    student_nis VARCHAR(50),
+    santri_nis VARCHAR(50),
     book_id UUID REFERENCES books(id) ON DELETE SET NULL,
     book_title VARCHAR(255),
     date DATE NOT NULL,
@@ -556,7 +560,15 @@ CREATE TABLE IF NOT EXISTS reading_activities (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Index for fast grouping by santri and date
+-- Migrasi kolom aman jika tabel sudah ada sebelumnya
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS student_name VARCHAR(255);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS santri_name VARCHAR(255);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS student_nis VARCHAR(50);
+ALTER TABLE reading_activities ADD COLUMN IF NOT EXISTS santri_nis VARCHAR(50);
+
+-- Index untuk pencarian cepat
+CREATE INDEX IF NOT EXISTS idx_reading_activities_santri ON reading_activities(santri_id);
+CREATE INDEX IF NOT EXISTS idx_reading_activities_date ON reading_activities(date);
 CREATE INDEX IF NOT EXISTS idx_reading_activities_santri_date ON reading_activities(santri_id, date);
 
 -- 2. Table Reading Daily Summaries (Aggregated per calendar date)
@@ -595,4 +607,37 @@ CREATE TABLE IF NOT EXISTS reading_streak_configs (
     milestones JSONB NOT NULL DEFAULT '[]'::jsonb,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- 5. Row Level Security (RLS)
+ALTER TABLE reading_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_daily_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_streaks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reading_streak_configs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow full access for reading_activities" ON reading_activities;
+CREATE POLICY "Allow full access for reading_activities" ON reading_activities FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_daily_summaries" ON reading_daily_summaries;
+CREATE POLICY "Allow full access for reading_daily_summaries" ON reading_daily_summaries FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_streaks" ON reading_streaks;
+CREATE POLICY "Allow full access for reading_streaks" ON reading_streaks FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow full access for reading_streak_configs" ON reading_streak_configs;
+CREATE POLICY "Allow full access for reading_streak_configs" ON reading_streak_configs FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. Enable Realtime
+DO $$
+BEGIN
+    PERFORM 1 FROM pg_publication WHERE pubname = 'supabase_realtime';
+    IF FOUND THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE reading_activities, reading_streaks, reading_streak_configs;
+    END IF;
+EXCEPTION WHEN duplicate_object THEN
+    NULL;
+END $$;
+
+ALTER TABLE reading_activities REPLICA IDENTITY FULL;
+ALTER TABLE reading_streaks REPLICA IDENTITY FULL;
+ALTER TABLE reading_streak_configs REPLICA IDENTITY FULL;
 `;
