@@ -57,61 +57,79 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { activeVisitsCount, activeLoansCount, overdueLoansCount, currentUser, logout, settings, pendingWishlistsCount } = useLibrary();
 
-  const mainNavItems = [
-    { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tap' as NavTab, label: 'Tap Presensi RFID', icon: Radio, highlight: true },
-    { 
-      id: 'circulation' as NavTab, 
-      label: 'Sirkulasi & Usulan Buku', 
-      icon: BookOpen, 
-      badge: pendingWishlistsCount > 0 ? `${pendingWishlistsCount} Usulan` : (activeLoansCount > 0 ? activeLoansCount : undefined),
-      badgeColor: pendingWishlistsCount > 0 ? 'bg-amber-500 text-slate-950 font-bold' : (overdueLoansCount > 0 ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white'),
-      highlight: true
+  const navSections = [
+    {
+      title: 'Meja Layanan & Piket',
+      items: [
+        { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'tap' as NavTab, label: 'Tap Presensi RFID', icon: Radio, highlight: true },
+        { 
+          id: 'live' as NavTab, 
+          label: 'Sedang di Perpustakaan', 
+          icon: DoorOpen, 
+          badge: activeVisitsCount > 0 ? activeVisitsCount : undefined,
+          badgeColor: 'bg-emerald-500 text-white'
+        },
+        { 
+          id: 'circulation' as NavTab, 
+          label: 'Sirkulasi & Usulan Buku', 
+          icon: BookOpen, 
+          badge: pendingWishlistsCount > 0 ? `${pendingWishlistsCount} Usulan` : (activeLoansCount > 0 ? activeLoansCount : undefined),
+          badgeColor: pendingWishlistsCount > 0 ? 'bg-amber-500 text-slate-950 font-bold' : (overdueLoansCount > 0 ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white'),
+          highlight: true
+        },
+      ]
     },
-    { 
-      id: 'awards' as NavTab, 
-      label: 'Penghargaan & XP', 
-      icon: Trophy,
-      badgeColor: 'bg-amber-500 text-slate-950 font-bold',
-      highlight: true 
+    {
+      title: 'Pembinaan & Literasi Santri',
+      items: [
+        { 
+          id: 'awards' as NavTab, 
+          label: 'Penghargaan & XP Santri', 
+          icon: Trophy,
+          badge: 'XP & Piagam',
+          badgeColor: 'bg-amber-500 text-slate-950 font-bold',
+          highlight: true 
+        },
+      ]
     },
-    { id: 'kiosk' as NavTab, label: 'Display Kios TV', icon: Tv },
-    { id: 'students' as NavTab, label: 'Data Santri', icon: Users },
-    { 
-      id: 'santri_menu' as NavTab, 
-      label: 'Menu Santri', 
-      icon: Smartphone,
-      badge: 'Akses',
-      badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+    {
+      title: 'Data Master & Arsip',
+      items: [
+        { id: 'students' as NavTab, label: 'Data Santri', icon: Users },
+        { id: 'cards' as NavTab, label: 'Data Kartu RFID', icon: CreditCard },
+        { id: 'visits' as NavTab, label: 'Riwayat Kunjungan', icon: History },
+      ]
     },
-    { id: 'cards' as NavTab, label: 'Data Kartu RFID', icon: CreditCard },
-    { id: 'visits' as NavTab, label: 'Riwayat Kunjungan', icon: History },
-  ];
-
-  const reportNavItems = [
-    { 
-      id: 'live' as NavTab, 
-      label: 'Sedang di Perpustakaan', 
-      icon: DoorOpen, 
-      badge: activeVisitsCount > 0 ? activeVisitsCount : undefined,
-      badgeColor: 'bg-emerald-500 text-white'
-    },
-    { id: 'stats' as NavTab, label: 'Statistik & Analitik', icon: BarChart3 },
-    { 
-      id: 'users' as NavTab, 
-      label: 'Kelola Pengguna', 
-      icon: ShieldCheck,
-      badge: currentUser?.role === 'admin' ? 'Admin' : undefined,
-      badgeColor: 'bg-amber-500 text-slate-950 font-bold'
-    },
-    { 
-      id: 'updates' as NavTab, 
-      label: 'Update Log', 
-      icon: Sparkles,
-      badge: 'v2.8',
-      badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-    },
-    { id: 'settings' as NavTab, label: 'Pengaturan', icon: Settings },
+    {
+      title: 'Laporan & Fasilitas Sistem',
+      items: [
+        { id: 'stats' as NavTab, label: 'Statistik & Analitik', icon: BarChart3 },
+        { id: 'kiosk' as NavTab, label: 'Display Kios TV', icon: Tv },
+        { 
+          id: 'santri_menu' as NavTab, 
+          label: 'Menu Santri', 
+          icon: Smartphone,
+          badge: 'Portal',
+          badgeColor: 'bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+        },
+        { 
+          id: 'users' as NavTab, 
+          label: 'Kelola Pengguna', 
+          icon: ShieldCheck,
+          badge: currentUser?.role === 'admin' ? 'Admin' : undefined,
+          badgeColor: 'bg-amber-500 text-slate-950 font-bold'
+        },
+        { 
+          id: 'updates' as NavTab, 
+          label: 'Update Log', 
+          icon: Sparkles,
+          badge: 'v2.8.8',
+          badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+        },
+        { id: 'settings' as NavTab, label: 'Pengaturan', icon: Settings },
+      ]
+    }
   ];
 
   return (
@@ -151,112 +169,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Items */}
-        <div className="flex-1 py-4 px-4 space-y-1 overflow-y-auto no-scrollbar">
-          <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">
-            Menu Utama
-          </div>
+        <div className="flex-1 py-3 px-3 space-y-3 overflow-y-auto no-scrollbar">
+          {navSections.map((section, sIndex) => (
+            <div key={section.title} className={sIndex > 0 ? 'pt-2.5 border-t border-slate-100 dark:border-slate-800/80' : ''}>
+              <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5 flex items-center justify-between">
+                <span>{section.title}</span>
+                <span className="text-[9px] font-mono text-slate-400/60 dark:text-slate-600 font-semibold">{section.items.length}</span>
+              </div>
 
-          {mainNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentTab === item.id;
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id;
 
-            return (
-              <button
-                key={item.id}
-                id={`nav-btn-${item.id}`}
-                onClick={() => {
-                  onSelectTab(item.id);
-                  onCloseMobile();
-                }}
-                className={`
-                  relative w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer group
-                  ${isActive 
-                    ? 'text-blue-700 dark:text-blue-400 font-semibold' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
-                  }
-                `}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="sidebar-active-indicator"
-                    className="absolute inset-0 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100/80 dark:border-blue-800/50"
-                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                  />
-                )}
+                  return (
+                    <button
+                      key={item.id}
+                      id={`nav-btn-${item.id}`}
+                      onClick={() => {
+                        onSelectTab(item.id);
+                        onCloseMobile();
+                      }}
+                      className={`
+                        relative w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer group
+                        ${isActive 
+                          ? 'text-blue-700 dark:text-blue-400 font-semibold' 
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
+                        }
+                      `}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId="sidebar-active-indicator"
+                          className="absolute inset-0 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100/80 dark:border-blue-800/50"
+                          transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                        />
+                      )}
 
-                <div className="relative z-10 flex items-center gap-3">
-                  <Icon className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
-                  }`} />
-                  <span>{item.label}</span>
-                </div>
+                      <div className="relative z-10 flex items-center gap-2.5 min-w-0">
+                        <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+                        }`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
 
-                <div className="relative z-10 flex items-center gap-1.5">
-                  {item.badge !== undefined && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-blue-600 text-white'}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                  {item.highlight && item.badge === undefined && !isActive && (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-
-          <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-2 mt-6">
-            Laporan & Sistem
-          </div>
-
-          {reportNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentTab === item.id;
-
-            return (
-              <button
-                key={item.id}
-                id={`nav-btn-${item.id}`}
-                onClick={() => {
-                  onSelectTab(item.id);
-                  onCloseMobile();
-                }}
-                className={`
-                  relative w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer group
-                  ${isActive 
-                    ? 'text-blue-700 dark:text-blue-400 font-semibold' 
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
-                  }
-                `}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="sidebar-active-indicator"
-                    className="absolute inset-0 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100/80 dark:border-blue-800/50"
-                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                  />
-                )}
-
-                <div className="relative z-10 flex items-center gap-3">
-                  <Icon className={`w-4 h-4 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
-                  }`} />
-                  <span>{item.label}</span>
-                </div>
-
-                <div className="relative z-10">
-                  {item.badge !== undefined && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-emerald-500 text-white'}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                      <div className="relative z-10 flex items-center gap-1.5 shrink-0 ml-1">
+                        {item.badge !== undefined && (
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${item.badgeColor || 'bg-blue-600 text-white'}`}>
+                            {item.badge}
+                          </span>
+                        )}
+                        {item.highlight && item.badge === undefined && !isActive && (
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* PWA Download / Install Sidebar Widget */}

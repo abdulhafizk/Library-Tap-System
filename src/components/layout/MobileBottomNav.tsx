@@ -60,13 +60,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const moreMenuItems: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number | string; badgeColor?: string }[] = [
     { 
-      id: 'visits', 
-      label: 'Riwayat Kunjungan', 
-      icon: History 
-    },
-    { 
       id: 'live', 
-      label: 'Sedang di Perpustakaan', 
+      label: 'Sedang di Perpus', 
       icon: DoorOpen, 
       badge: activeVisitsCount > 0 ? activeVisitsCount : undefined,
       badgeColor: 'bg-emerald-500 text-white'
@@ -74,12 +69,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { 
       id: 'awards', 
       label: 'Penghargaan & XP', 
-      icon: Trophy 
+      icon: Trophy,
+      badge: 'XP',
+      badgeColor: 'bg-amber-500 text-slate-950 font-bold'
     },
     { 
       id: 'cards', 
       label: 'Data Kartu RFID', 
       icon: CreditCard 
+    },
+    { 
+      id: 'visits', 
+      label: 'Riwayat Kunjungan', 
+      icon: History 
     },
     { 
       id: 'stats', 
@@ -95,19 +97,21 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       id: 'santri_menu' as NavTab, 
       label: 'Menu Santri', 
       icon: Smartphone,
-      badge: 'Akses',
+      badge: 'Portal',
       badgeColor: 'bg-teal-600 text-white'
     },
     ...(currentUser?.role === 'admin' ? [{ 
       id: 'users' as NavTab, 
       label: 'Kelola Pengguna', 
-      icon: ShieldCheck 
+      icon: ShieldCheck,
+      badge: 'Admin',
+      badgeColor: 'bg-amber-500 text-slate-950 font-bold'
     }] : []),
     { 
       id: 'updates' as NavTab, 
       label: 'Update Log', 
       icon: Sparkles,
-      badge: 'v2.8',
+      badge: 'v2.8.8',
       badgeColor: 'bg-blue-600 text-white'
     },
     { 
